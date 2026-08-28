@@ -1,0 +1,881 @@
+<title>Read to Play</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+  :root {
+    --teal: #0f766e;
+    --teal-dark: #115e59;
+    --teal-soft: #ccfbf1;
+    --teal-pale: #f0fdfa;
+    --teal-line: #99f6e4;
+    --amber: #d97706;
+    --amber-dark: #b45309;
+    --amber-soft: #fef3c7;
+    --amber-line: #fed7aa;
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --green-soft: #f0fdf4;
+    --green-line: #bbf7d0;
+    --red: #dc2626;
+    --red-soft: #fef2f2;
+    --red-line: #fecaca;
+    --bg: #faf9f7;
+    --card: #ffffff;
+    --ink: #292524;
+    --ink-2: #57534e;
+    --muted: #78716c;
+    --faint: #a8a29e;
+    --line: #e7e5e4;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  h1, h2, h3, .display { font-family: "Fredoka", "Nunito", system-ui, sans-serif; font-weight: 600; margin: 0; }
+  button { font: inherit; color: inherit; border: none; background: none; cursor: pointer; }
+
+  /* ---------- app shell: targets Steam Deck 1280x800, scales down gracefully ---------- */
+  #app {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(16px, 2.6vh, 36px) clamp(20px, 3.4vw, 56px);
+    gap: clamp(14px, 2.4vh, 28px);
+  }
+
+  .row { display: flex; align-items: center; }
+  .gap-sm { gap: 10px; } .gap-md { gap: 16px; } .gap-lg { gap: 26px; }
+  .grow { flex-grow: 1; }
+  .col { display: flex; flex-direction: column; }
+
+  .pill {
+    display: flex; align-items: center; gap: 8px;
+    border-radius: 999px; padding: 9px 16px;
+    font-size: clamp(13px, 1.6vh, 16px); font-weight: 800;
+  }
+  .pill-teal { background: var(--teal-soft); color: var(--teal); }
+  .pill-amber { background: var(--amber-soft); color: var(--amber-dark); }
+  .pill-streak { background: #fff7ed; border: 1px solid var(--amber-line); color: var(--amber-dark); }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; }
+
+  .btn-primary {
+    background: var(--teal); color: #fff; border-radius: 18px;
+    padding: clamp(14px, 2.2vh, 22px) clamp(24px, 3vw, 44px);
+    font-family: "Fredoka", sans-serif; font-size: clamp(17px, 2.4vh, 23px); font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    transition: transform .08s ease, background .15s ease;
+  }
+  .btn-primary:hover { background: var(--teal-dark); }
+  .btn-primary:active { transform: scale(.98); }
+
+  .btn-amber { background: var(--amber); }
+  .btn-amber:hover { background: var(--amber-dark); }
+
+  /* button hint glyphs */
+  .glyph {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #fff; flex-shrink: 0;
+  }
+  .glyph-b { background: var(--faint); }
+  .glyph-light { background: var(--teal-soft); color: var(--teal); }
+  .hint { font-size: clamp(13px, 1.7vh, 16px); color: var(--ink-2); font-weight: 700; }
+  .hint-faint { color: var(--faint); font-weight: 600; }
+
+  /* ---------- progress ---------- */
+  .track { height: 12px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .track > div { height: 100%; background: var(--teal); border-radius: 999px; transition: width .35s ease; }
+  .dots { display: flex; gap: 8px; }
+  .dots i { width: 42px; height: 8px; border-radius: 999px; background: var(--line); }
+  .dots i.on { background: var(--teal); }
+  .dots.amber i.on { background: var(--amber); }
+
+  /* ---------- reading ---------- */
+  .passage {
+    font-size: clamp(19px, 3.1vh, 28px);
+    line-height: 1.85;
+    color: var(--ink);
+  }
+  .word { cursor: pointer; border-radius: 4px; padding: 0 1px; }
+  .word:hover { background: var(--teal-soft); }
+  .word.known {
+    color: var(--teal); font-weight: 700;
+    text-decoration: underline dotted var(--teal);
+    text-underline-offset: 6px;
+  }
+  .word.active { background: var(--teal); color: #fff; text-decoration: none; }
+
+  .side {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+  .side-idle {
+    height: 100%; border: 2px dashed #ddd9d5; border-radius: 24px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 28px; text-align: center;
+  }
+  .side-word {
+    height: 100%; background: var(--teal-pale); border: 2px solid var(--teal-line);
+    border-radius: 24px; padding: clamp(18px, 3vh, 32px);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* ---------- options ---------- */
+  .opt {
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 18px;
+    padding: clamp(12px, 1.9vh, 20px) clamp(16px, 1.6vw, 26px);
+    display: flex; align-items: center; gap: 14px;
+    font-size: clamp(15px, 2.1vh, 20px); font-weight: 600; color: var(--ink-2);
+    text-align: left; min-height: clamp(52px, 8vh, 76px);
+    transition: border-color .12s ease, background .12s ease, transform .08s ease;
+  }
+  .opt:hover:not(.locked) { border-color: var(--teal); background: var(--teal-pale); }
+  .opt:active:not(.locked) { transform: scale(.995); }
+  .opt.correct { border: 2.5px solid var(--green); background: var(--green-soft); color: var(--green-dark); font-weight: 800; }
+  .opt.wrong { border: 2.5px solid var(--red); background: var(--red-soft); color: var(--red); font-weight: 800; }
+  .opt.locked { cursor: default; }
+  .opt .mark { flex-shrink: 0; margin-left: auto; }
+
+  .feedback {
+    border-radius: 18px; padding: clamp(12px, 2vh, 20px) 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .feedback.good { background: var(--green-soft); border: 1px solid var(--green-line); }
+  .feedback.bad { background: var(--red-soft); border: 1px solid var(--red-line); }
+  .fb-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* ---------- celebration ---------- */
+  .done { background: var(--teal); }
+  .done .panel { background: var(--teal-dark); border-radius: 22px; }
+  .meter { display: flex; gap: 8px; }
+  .meter i { flex: 1; height: 12px; border-radius: 999px; background: #0d5d57; }
+  .meter i.hit { background: #34d399; }
+  .meter i.miss { background: #fbbf24; }
+
+  /* ---------- dev drawer ---------- */
+  #devbtn {
+    position: fixed; right: 14px; bottom: 14px; z-index: 40;
+    background: var(--ink); color: #fff; border-radius: 999px;
+    padding: 9px 16px; font-size: 12px; font-weight: 800; letter-spacing: .04em;
+    opacity: .55; transition: opacity .15s ease;
+  }
+  #devbtn:hover { opacity: 1; }
+  #dev {
+    position: fixed; inset: 0; z-index: 50; background: rgba(41,37,36,.55);
+    display: none; align-items: stretch; justify-content: flex-end;
+  }
+  #dev.open { display: flex; }
+  #dev .sheet {
+    width: min(660px, 100%); background: #1c1917; color: #e7e5e4;
+    display: flex; flex-direction: column; padding: 20px; gap: 14px;
+  }
+  #dev .tabs { display: flex; gap: 8px; }
+  #dev .tab { padding: 8px 14px; border-radius: 10px; background: #292524; font-size: 13px; font-weight: 700; }
+  #dev .tab.on { background: var(--teal); color: #fff; }
+  #dev pre {
+    flex-grow: 1; overflow: auto; margin: 0; background: #0c0a09; border-radius: 12px;
+    padding: 14px; font-size: 12px; line-height: 1.55; font-family: ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #dev .acts { display: flex; gap: 10px; }
+  #dev .act { background: #292524; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 700; }
+  #dev .act:hover { background: #44403c; }
+</style>
+
+<div id="app"></div>
+
+<button id="devbtn">DATA</button>
+<div id="dev">
+  <div class="sheet">
+    <div class="row gap-md">
+      <strong style="font-family:'Fredoka',sans-serif;font-size:18px;">Session data</strong>
+      <span class="grow"></span>
+      <button class="act" data-dev="close">Close</button>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-tab="payload">Filled passage JSON</button>
+      <button class="tab" data-tab="events">Event log (<span id="evcount">0</span>)</button>
+    </div>
+    <pre id="devout"></pre>
+    <div class="acts">
+      <button class="act" data-dev="copy">Copy to clipboard</button>
+      <button class="act" data-dev="save" style="display:none;">Save as file</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================================
+     1. DATA SOURCE
+     Bundled copy of passage_2513.json. When the team's endpoint is live,
+     replace the body of loadPassage() with a fetch — the rest of the app
+     does not change, it only ever sees this shape.
+     ========================================================================= */
+
+  var PASSAGE_ENDPOINT = null; // e.g. "https://api.example.com/passages/2513"
+
+  var BUNDLED_PASSAGE = {
+    passage: {
+      id: 2513,
+      title: "No Pigs Allowed",
+      author: "Basilio Gimo and Little Zebra Books",
+      source: "African Storybook Level 4",
+      license: "CC BY 4.0",
+      category: "Lit",
+      lexileBand: 500,
+      fleschKincaidGrade: 2.12,
+      daleChall: 4.96,
+      wordCount: 200,
+      coverImageUrl: "https://placeholder.example.com/passages/2513/cover.png"
+    },
+    chunks: [
+      { chunkId: 1, text: "Years ago, a group of horned animals decided to have a big party high up in the mountains. They only invited other animals with horns. No one else.", readingTime: { startedAt: null, finishedAt: null, durationMs: null } },
+      { chunkId: 2, text: "When the pig heard about the party, he thought, \"I don't have any horns. What am I going to do?\" The next day, he had an idea. He'd stick some horns to his head with wax!", readingTime: { startedAt: null, finishedAt: null, durationMs: null } },
+      { chunkId: 3, text: "It worked, and the pig felt very clever when he was allowed into the party. The problem was that the party was taking place close to the sun.", readingTime: { startedAt: null, finishedAt: null, durationMs: null } },
+      { chunkId: 4, text: "When the party started heating up, the wax began to melt, and his horns fell off. The horned animals were shocked. \"Who's that one with no horns? Why did he come here?\" they asked.", readingTime: { startedAt: null, finishedAt: null, durationMs: null } },
+      { chunkId: 5, text: "The king of the horned animals commanded, \"Grab that pig and throw him down to earth.\" So all the animals, when they heard the king's words, did just that. They grabbed the pig and threw him down to earth.", readingTime: { startedAt: null, finishedAt: null, durationMs: null } },
+      { chunkId: 6, text: "Poor pig! When he fell, he landed on his nose. And his nose was flattened into a snout. Their job done, all the other animals returned to the party. They ate and danced all night.", readingTime: { startedAt: null, finishedAt: null, durationMs: null } }
+    ],
+    comprehensionQuestions: [
+      { questionId: "c1", axis: "comprehension", prompt: "Why did the pig stick horns to his head with wax?", options: ["Because he wanted to look scary", "Because only animals with horns were invited to the party", "Because the king told him to", "Because his own horns had fallen off"], correctIndex: 1, answer: null, score: 0, timeSpentMs: null },
+      { questionId: "c2", axis: "comprehension", prompt: "What made the pig's horns fall off?", options: ["The other animals pulled them off", "He fell down to earth", "The party was close to the sun and the wax melted", "He danced too hard"], correctIndex: 2, answer: null, score: 0, timeSpentMs: null },
+      { questionId: "c3", axis: "comprehension", prompt: "According to the story, why do pigs have flat noses today?", options: ["The pig landed on his nose when he was thrown down to earth", "The pig pressed his nose against the mountain", "The wax stuck to his nose", "The king flattened it as punishment"], correctIndex: 0, answer: null, score: 0, timeSpentMs: null }
+    ],
+    vocabQuestions: [
+      { questionId: "v1", axis: "vocabulary", word: "horned", imageUrl: "https://placeholder.example.com/vocab/horned.png", prompt: "What does \"horned\" mean?", options: ["Having horns on the head", "Very loud", "Living in the mountains", "Angry"], correctIndex: 0, answer: null, score: 0, timeSpentMs: null },
+      { questionId: "v2", axis: "vocabulary", word: "commanded", imageUrl: "https://placeholder.example.com/vocab/commanded.png", prompt: "The king \"commanded\" the animals. What did he do?", options: ["He asked them politely", "He gave them an order", "He sang to them", "He thanked them"], correctIndex: 1, answer: null, score: 0, timeSpentMs: null },
+      { questionId: "v3", axis: "vocabulary", word: "snout", imageUrl: "https://placeholder.example.com/vocab/snout.png", prompt: "What is a \"snout\"?", options: ["A kind of party", "A pair of horns", "An animal's nose and mouth that stick out", "A ball of wax"], correctIndex: 2, answer: null, score: 0, timeSpentMs: null }
+    ]
+  };
+
+  function loadPassage() {
+    if (PASSAGE_ENDPOINT) return fetch(PASSAGE_ENDPOINT).then(function (r) { return r.json(); });
+    return Promise.resolve(JSON.parse(JSON.stringify(BUNDLED_PASSAGE)));
+  }
+
+  /* Word lookups. The three vocab words come from the passage's own vocabQuestions;
+     the rest are demo stand-ins for what the word-lookup endpoint (LibreChat) returns. */
+  var DEFINITIONS = {
+    horned:    { pos: "adjective", meaning: "Having horns on the head, like a cow or a goat." },
+    commanded: { pos: "verb",      meaning: "Gave an order that had to be obeyed." },
+    snout:     { pos: "noun",      meaning: "An animal's nose and mouth that stick out at the front." },
+    wax:       { pos: "noun",      meaning: "A soft stuff that goes runny when it gets hot. Candles are made of it." },
+    clever:    { pos: "adjective", meaning: "Good at thinking of smart ideas." },
+    flattened: { pos: "verb",      meaning: "Pressed flat, so it is not round any more." },
+    shocked:   { pos: "adjective", meaning: "Very surprised by something you did not expect." },
+    invited:   { pos: "verb",      meaning: "Asked someone to come to something, like a party." },
+    mountains: { pos: "noun",      meaning: "Very tall hills made of rock." }
+  };
+
+  /* The reader. In the real app this comes from the profile service. */
+  var STUDENT = { id: "s1", name: "Maya", comprehensionLevel: 2, vocabLevel: 1, streak: 5 };
+
+  /* =========================================================================
+     2. EVENT LOGGING
+     Everything the child does goes through logEvent(). Swap the body for a
+     POST to the events endpoint and the whole app is instrumented.
+     ========================================================================= */
+
+  var EVENTS = [];
+
+  function logEvent(type, data) {
+    var ev = Object.assign({
+      studentId: STUDENT.id,
+      passageId: S.passage ? S.passage.passage.id : null,
+      type: type,
+      ts: Date.now()
+    }, data || {});
+    EVENTS.push(ev);
+    console.log("[event]", ev);
+    var c = document.getElementById("evcount");
+    if (c) c.textContent = String(EVENTS.length);
+    return ev;
+  }
+
+  /* =========================================================================
+     3. STATE
+     ========================================================================= */
+
+  var S = {
+    passage: null,
+    screen: "loading",
+    chunkIndex: 0,
+    chunkStart: 0,
+    readingStart: 0,
+    qIndex: 0,
+    qStart: 0,
+    picked: null,
+    activeWord: null,
+    devTab: "payload"
+  };
+
+  var app = document.getElementById("app");
+
+  /* =========================================================================
+     4. HELPERS
+     ========================================================================= */
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function iso(ms) { return new Date(ms).toISOString(); }
+
+  var ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+    down:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+    flame: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-2 5-2 8a4 4 0 0 0 8 0c0-1-1-2-1-3 2 1 4 4 4 7a7 7 0 1 1-14 0c0-4 4-6 5-9z"/></svg>',
+    book:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h7v18H6a2 2 0 0 1-2-2z"/><path d="M20 3v18"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/></svg>',
+    page:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2z"/><path d="M8 12h7"/><path d="M8 16h5"/></svg>',
+    help:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+    lock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
+    whale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/><path d="M12 4c3 0 5.5 2.2 5.5 5 0 2-1 3.2-1 4.5"/><path d="M6.5 11.5C6.5 7.9 9 5 12 4"/><circle cx="14.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/></svg>'
+  };
+
+  function ico(name, size, color) {
+    return '<span style="display:inline-flex;width:' + size + 'px;height:' + size + 'px;color:' + (color || "currentColor") + ';">' + ICON[name] + "</span>";
+  }
+
+  /* Map the passage's readability scores onto our two axes, then describe the
+     fit against this child's profile. Swap this for the real model later. */
+  function bookLevels(p) {
+    return {
+      comprehension: Math.max(1, Math.round(p.fleschKincaidGrade)),
+      vocab: Math.max(1, Math.round(p.daleChall - 3))
+    };
+  }
+
+  function fitLabel(bookLevel, childLevel) {
+    if (bookLevel < childLevel) return { text: "An easy win", tone: "good", icon: "check" };
+    if (bookLevel === childLevel) return { text: "Just right", tone: "good", icon: "check" };
+    return { text: "A gentle stretch", tone: "warn", icon: "down" };
+  }
+
+  /* =========================================================================
+     5. SCREENS
+     ========================================================================= */
+
+  function screenStart() {
+    var p = S.passage.passage;
+    var lv = bookLevels(p);
+    var fitC = fitLabel(lv.comprehension, STUDENT.comprehensionLevel);
+    var fitV = fitLabel(lv.vocab, STUDENT.vocabLevel);
+    var mins = Math.max(1, Math.round(p.wordCount / 90));
+
+    function fitRow(label, fit) {
+      var col = fit.tone === "good" ? "var(--green)" : "var(--amber)";
+      return '<div class="row gap-md" style="flex:1;">' +
+        ico(fit.icon, 24, col) +
+        '<div class="col">' +
+          '<span style="font-size:clamp(14px,2vh,17px);font-weight:700;">' + label + "</span>" +
+          '<span style="font-size:clamp(12px,1.7vh,14px);font-weight:700;color:' + col + ';">' + fit.text + "</span>" +
+        "</div></div>";
+    }
+
+    app.className = "";
+    app.innerHTML =
+      '<div class="row gap-md">' +
+        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
+        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Read to Play</span>' +
+        '<span class="grow"></span>' +
+        '<span class="pill pill-streak">' + ico("flame", 18, "var(--amber)") + STUDENT.streak + " day streak</span>" +
+        '<span style="font-size:17px;font-weight:700;color:var(--ink-2);">' + esc(STUDENT.name) + "</span>" +
+      "</div>" +
+
+      '<div class="row" style="gap:clamp(24px,3.5vw,48px);flex-grow:1;align-items:stretch;">' +
+        '<div style="width:clamp(180px,22vw,300px);background:#e7f5f3;border:1px solid #cde9e5;border-radius:22px;display:flex;align-items:center;justify-content:center;color:#5eada4;flex-shrink:0;">' +
+          '<span style="width:38%;display:block;">' + ICON.whale + "</span>" +
+        "</div>" +
+
+        '<div class="col grow" style="gap:clamp(12px,2.2vh,22px);min-width:0;">' +
+          '<div class="col" style="gap:8px;">' +
+            '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);font-weight:700;">Picked for you, ' + esc(STUDENT.name) + "</span>" +
+            '<h1 style="font-size:clamp(26px,5vh,40px);line-height:1.15;">' + esc(p.title) + "</h1>" +
+            '<div class="row" style="gap:14px;flex-wrap:wrap;">' +
+              '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);">' + esc(p.author) + "</span>" +
+              '<span style="width:4px;height:4px;border-radius:50%;background:#d6d3d1;"></span>' +
+              '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);">' + S.passage.chunks.length + " pages &middot; about " + mins + " min</span>" +
+              '<span class="pill pill-streak" style="font-size:14px;padding:5px 14px;">' + esc(p.category === "Lit" ? "Story" : "True facts") + "</span>" +
+            "</div>" +
+          "</div>" +
+
+          '<div class="card" style="padding:clamp(16px,2.6vh,26px);display:flex;flex-direction:column;gap:16px;">' +
+            '<span style="font-size:13px;font-weight:800;color:var(--teal);letter-spacing:.07em;">WHY THIS BOOK MATCHES YOU</span>' +
+            '<div class="row" style="gap:clamp(16px,2.5vw,34px);">' +
+              fitRow("Comprehension", fitC) +
+              fitRow("Vocabulary", fitV) +
+              fitRow("Kind of book", { text: p.category === "Lit" ? "A story" : "Real facts", tone: "good", icon: "check" }) +
+            "</div>" +
+          "</div>" +
+
+          '<span class="grow"></span>' +
+
+          '<div class="row gap-lg">' +
+            '<button class="btn-primary" data-go="read">Start reading' + ico("arrow", 22) + "</button>" +
+            '<span class="row gap-sm"><span class="glyph">A</span><span class="hint-faint" style="font-size:15px;">or tap the screen</span></span>' +
+          "</div>" +
+        "</div>" +
+      "</div>";
+  }
+
+  function tokenize(text) {
+    return text.match(/[A-Za-z’']+|[^A-Za-z’']+/g) || [];
+  }
+
+  function screenReading() {
+    var chunk = S.passage.chunks[S.chunkIndex];
+    var total = S.passage.chunks.length;
+    var pct = ((S.chunkIndex + 1) / total) * 100;
+
+    var body = tokenize(chunk.text).map(function (tok) {
+      if (!/[A-Za-z]/.test(tok)) return esc(tok);
+      var key = tok.toLowerCase().replace(/[’']s$/, "");
+      var known = Object.prototype.hasOwnProperty.call(DEFINITIONS, key);
+      var active = S.activeWord === key;
+      return '<span class="word' + (known ? " known" : "") + (active ? " active" : "") +
+        '" data-word="' + esc(key) + '" data-raw="' + esc(tok) + '">' + esc(tok) + "</span>";
+    }).join("");
+
+    var side;
+    if (S.activeWord && DEFINITIONS[S.activeWord]) {
+      var d = DEFINITIONS[S.activeWord];
+      side =
+        '<div class="side-word">' +
+          '<div class="row" style="gap:12px;align-items:baseline;">' +
+            '<span class="display" style="font-size:clamp(22px,4vh,32px);font-weight:700;color:var(--teal);">' + esc(S.activeWord) + "</span>" +
+            '<span style="font-size:15px;color:var(--muted);font-style:italic;">' + esc(d.pos) + "</span>" +
+          "</div>" +
+          '<div style="font-size:clamp(15px,2.4vh,20px);line-height:1.6;color:#44403c;">' + esc(d.meaning) + "</div>" +
+          '<span class="grow"></span>' +
+          '<button class="btn-primary" style="padding:15px;border-radius:14px;" data-go="dismiss">Got it</button>' +
+        "</div>";
+    } else if (S.activeWord) {
+      side =
+        '<div class="side-word">' +
+          '<span class="display" style="font-size:clamp(22px,4vh,32px);font-weight:700;color:var(--teal);">' + esc(S.activeWord) + "</span>" +
+          '<div style="font-size:clamp(15px,2.4vh,20px);line-height:1.6;color:#44403c;">We haven\'t got this one yet &mdash; the lookup service will answer it in the real app. Your tap was still recorded.</div>' +
+          '<span class="grow"></span>' +
+          '<button class="btn-primary" style="padding:15px;border-radius:14px;" data-go="dismiss">Got it</button>' +
+        "</div>";
+    } else {
+      side =
+        '<div class="side-idle">' +
+          '<span style="width:44px;color:#c4bfba;display:block;">' + ICON.help + "</span>" +
+          '<span class="display" style="font-size:clamp(16px,2.8vh,21px);color:var(--faint);line-height:1.35;">Tap any word<br>you don\'t know</span>' +
+          '<span style="font-size:15px;color:#c4bfba;">The dotted ones are a good place to start</span>' +
+        "</div>";
+    }
+
+    app.className = "";
+    app.innerHTML =
+      '<div class="row gap-lg">' +
+        '<div class="col grow" style="gap:9px;min-width:0;">' +
+          '<div class="row" style="gap:12px;align-items:baseline;">' +
+            '<span class="display" style="font-size:clamp(15px,2.3vh,18px);">Page ' + (S.chunkIndex + 1) + " of " + total + "</span>" +
+            '<span style="font-size:15px;color:var(--faint);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(S.passage.passage.title) + "</span>" +
+          "</div>" +
+          '<div class="track"><div style="width:' + pct + '%"></div></div>' +
+        "</div>" +
+        '<span class="pill pill-streak">' + ico("flame", 18, "var(--amber)") + STUDENT.streak + "</span>" +
+      "</div>" +
+
+      '<div class="row" style="gap:clamp(16px,2vw,28px);flex-grow:1;align-items:stretch;min-height:0;">' +
+        '<div class="card" style="flex:1.75;padding:clamp(20px,4vh,44px);display:flex;align-items:center;overflow:auto;">' +
+          '<p class="passage" style="margin:0;">' + body + "</p>" +
+        "</div>" +
+        '<div class="side">' + side + "</div>" +
+      "</div>" +
+
+      '<div class="row gap-lg">' +
+        '<span class="row gap-sm"><span class="glyph">A</span><span class="hint">' + (S.chunkIndex + 1 === total ? "Finish reading" : "Next page") + "</span></span>" +
+        (S.chunkIndex > 0 ? '<span class="row gap-sm"><span class="glyph glyph-b">B</span><span class="hint" style="color:var(--muted);">Back</span></span>' : "") +
+        '<span class="grow"></span>' +
+        '<button class="btn-primary" data-go="next">' + (S.chunkIndex + 1 === total ? "Finish reading" : "Next page") + ico("arrow", 22) + "</button>" +
+      "</div>";
+  }
+
+  function screenQuiz(kind) {
+    var list = kind === "comprehension" ? S.passage.comprehensionQuestions : S.passage.vocabQuestions;
+    var q = list[S.qIndex];
+    var answered = S.picked !== null;
+    var isVocab = kind === "vocabulary";
+    var accent = isVocab ? "amber" : "teal";
+
+    var opts = q.options.map(function (opt, i) {
+      var cls = "opt";
+      var mark = "";
+      if (answered) {
+        cls += " locked";
+        if (i === q.correctIndex) { cls += " correct"; mark = '<span class="mark" style="width:26px;color:var(--green);display:block;">' + ICON.check + "</span>"; }
+        else if (i === S.picked) { cls += " wrong"; mark = '<span class="mark" style="width:26px;color:var(--red);display:block;">' + ICON.cross + "</span>"; }
+      }
+      return '<button class="' + cls + '" data-pick="' + i + '"><span>' + esc(opt) + "</span>" + mark + "</button>";
+    }).join("");
+
+    var left;
+    if (isVocab) {
+      left =
+        '<div class="col" style="gap:clamp(10px,2vh,20px);justify-content:center;flex:1;min-width:0;">' +
+          '<span class="display" style="font-size:clamp(18px,3.4vh,30px);color:var(--muted);">Tap the meaning</span>' +
+          '<div class="card" style="padding:clamp(18px,4vh,40px);display:flex;flex-direction:column;gap:16px;align-items:center;">' +
+            '<span class="display" style="font-size:clamp(30px,6.4vh,54px);font-weight:700;color:var(--teal);line-height:1;">' + esc(q.word) + "</span>" +
+            '<span style="height:1px;background:var(--line);width:80px;"></span>' +
+            '<span style="font-size:clamp(14px,2.3vh,19px);line-height:1.6;color:var(--muted);text-align:center;">' + esc(q.prompt) + "</span>" +
+          "</div>" +
+        "</div>";
+    } else {
+      left =
+        '<div class="col" style="gap:clamp(12px,2.4vh,22px);flex:1;min-width:0;padding-top:10px;">' +
+          '<h2 style="font-size:clamp(20px,4.2vh,36px);line-height:1.3;">' + esc(q.prompt) + "</h2>" +
+        "</div>";
+    }
+
+    var fb = "";
+    if (answered) {
+      var right = S.picked === q.correctIndex;
+      fb =
+        '<div class="feedback ' + (right ? "good" : "bad") + '">' +
+          '<span class="fb-icon" style="background:' + (right ? "var(--green)" : "var(--red)") + ';color:#fff;"><span style="width:22px;display:block;">' + (right ? ICON.check : ICON.cross) + "</span></span>" +
+          '<div class="col" style="gap:3px;">' +
+            '<span class="display" style="font-size:clamp(16px,2.6vh,20px);color:' + (right ? "var(--green-dark)" : "var(--red)") + ';">' + (right ? "Nice work!" : "Not quite") + "</span>" +
+            '<span style="font-size:15px;color:var(--muted);">' + (right ? "You got it." : "The green one is the answer.") + "</span>" +
+          "</div>" +
+        "</div>";
+    }
+
+    var dots = list.map(function (_, i) { return "<i" + (i <= S.qIndex ? ' class="on"' : "") + "></i>"; }).join("");
+    var last = S.qIndex + 1 === list.length;
+
+    app.className = "";
+    app.innerHTML =
+      '<div class="row gap-md">' +
+        '<span class="pill pill-' + accent + '">' + ico(isVocab ? "page" : "clock", 18) + (isVocab ? "Vocabulary" : "Comprehension") + "</span>" +
+        '<span style="font-size:clamp(14px,2vh,16px);color:var(--muted);font-weight:700;">' + (isVocab ? "Word " : "Question ") + (S.qIndex + 1) + " of " + list.length + "</span>" +
+        '<span class="grow"></span>' +
+        '<span class="dots' + (isVocab ? " amber" : "") + '">' + dots + "</span>" +
+      "</div>" +
+
+      '<div class="row" style="gap:clamp(20px,3vw,44px);flex-grow:1;align-items:stretch;min-height:0;">' +
+        left +
+        '<div class="col" style="flex:1.15;gap:clamp(9px,1.6vh,16px);justify-content:center;min-width:0;">' + opts + "</div>" +
+      "</div>" +
+
+      (fb ? '<div>' + fb + "</div>" : "") +
+
+      '<div class="row gap-lg">' +
+        '<span class="row gap-sm"><span class="glyph">A</span><span class="hint">' + (answered ? (last ? "Continue" : "Next") : "Choose") + "</span></span>" +
+        '<span class="grow"></span>' +
+        (answered ? '<button class="btn-primary" data-go="advance">' + (last ? "Continue" : "Next question") + ico("arrow", 22) + "</button>" : '<span class="hint-faint" style="font-size:15px;">Answer and time-to-answer are recorded as a ' + (isVocab ? "vocabulary" : "comprehension") + " signal</span>") +
+      "</div>";
+  }
+
+  function screenDone() {
+    var cs = S.passage.comprehensionQuestions;
+    var vs = S.passage.vocabQuestions;
+    var cGot = cs.filter(function (q) { return q.score === 1; }).length;
+    var vGot = vs.filter(function (q) { return q.score === 1; }).length;
+    var points = 20 + (cGot + vGot) * 10;
+
+    function meter(list) {
+      return list.map(function (q) { return "<i class=\"" + (q.score === 1 ? "hit" : "miss") + "\"></i>"; }).join("");
+    }
+
+    var advice = vGot < cGot
+      ? "Vocabulary is the one to stretch next &mdash; we'll pick a book that helps."
+      : (cGot < vGot ? "Let's work on understanding the story next time." : "Lovely balance &mdash; on to something a little braver.");
+
+    app.className = "done";
+    app.innerHTML =
+      '<div class="row" style="gap:22px;">' +
+        '<span style="width:clamp(52px,9vh,76px);height:clamp(52px,9vh,76px);border-radius:50%;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="width:55%;display:block;">' + ICON.check + "</span></span>" +
+        '<div class="col" style="gap:5px;">' +
+          '<h1 style="font-size:clamp(26px,5.4vh,42px);color:#fff;font-weight:700;line-height:1.1;">Daily reading done!</h1>' +
+          '<span style="font-size:clamp(14px,2.3vh,18px);color:#99f6e4;font-weight:600;">You finished ' + esc(S.passage.passage.title) + ", " + esc(STUDENT.name) + "</span>" +
+        "</div>" +
+      "</div>" +
+
+      '<div class="row" style="gap:clamp(14px,1.9vw,24px);flex-grow:1;align-items:stretch;min-height:0;">' +
+
+        '<div class="panel" style="flex:1.3;padding:clamp(16px,3vh,28px);display:flex;flex-direction:column;gap:clamp(12px,2.4vh,22px);">' +
+          '<span style="font-size:13px;font-weight:800;color:#5eead4;letter-spacing:.07em;">HOW YOU DID</span>' +
+          '<div class="col" style="gap:12px;">' +
+            '<div class="row"><span style="font-size:clamp(15px,2.3vh,18px);color:#fff;font-weight:700;" class="grow">Comprehension</span><span style="font-size:20px;color:#fff;font-weight:800;">' + cGot + "/" + cs.length + "</span></div>" +
+            '<div class="meter">' + meter(cs) + "</div>" +
+          "</div>" +
+          '<div class="col" style="gap:12px;">' +
+            '<div class="row"><span style="font-size:clamp(15px,2.3vh,18px);color:#fff;font-weight:700;" class="grow">Vocabulary</span><span style="font-size:20px;color:#fff;font-weight:800;">' + vGot + "/" + vs.length + "</span></div>" +
+            '<div class="meter">' + meter(vs) + "</div>" +
+          "</div>" +
+          '<span class="grow"></span>' +
+          '<span style="font-size:15px;color:#99f6e4;line-height:1.5;">' + advice + "</span>" +
+        "</div>" +
+
+        '<div class="col" style="flex:1;gap:clamp(14px,1.9vw,24px);">' +
+          '<div class="panel grow" style="padding:20px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;">' +
+            '<span class="display" style="font-size:clamp(28px,6vh,46px);font-weight:700;color:#fff;line-height:1;">+' + points + "</span>" +
+            '<span style="font-size:14px;color:#99f6e4;font-weight:700;">points</span>' +
+          "</div>" +
+          '<div class="panel grow" style="padding:20px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;">' +
+            '<span class="row" style="gap:8px;">' + ico("flame", 34, "#fbbf24") + '<span class="display" style="font-size:clamp(28px,6vh,46px);font-weight:700;color:#fff;line-height:1;">' + STUDENT.streak + "</span></span>" +
+            '<span style="font-size:14px;color:#99f6e4;font-weight:700;">day streak</span>' +
+          "</div>" +
+        "</div>" +
+
+        '<div style="flex:1.4;background:#fff;border-radius:22px;padding:clamp(18px,3.4vh,32px);display:flex;flex-direction:column;gap:16px;align-items:center;justify-content:center;text-align:center;">' +
+          '<span style="width:clamp(48px,8vh,68px);height:clamp(48px,8vh,68px);border-radius:50%;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:center;"><span style="width:50%;display:block;">' + ICON.lock + "</span></span>" +
+          '<div class="col" style="gap:6px;">' +
+            '<span class="display" style="font-size:clamp(18px,3.2vh,26px);line-height:1.25;">30 minutes of play unlocked</span>' +
+            '<span style="font-size:15px;color:var(--muted);font-weight:600;">Reading came first &mdash; now go have fun!</span>' +
+          "</div>" +
+          '<button class="btn-primary btn-amber" style="width:100%;" data-go="restart">Unlock my games</button>' +
+        "</div>" +
+
+      "</div>" +
+
+      '<div class="row gap-sm">' +
+        '<span class="glyph glyph-light">A</span>' +
+        '<span class="hint" style="color:#99f6e4;">Unlock and return to the game library</span>' +
+      "</div>";
+  }
+
+  function render() {
+    if (S.screen === "start") screenStart();
+    else if (S.screen === "reading") screenReading();
+    else if (S.screen === "comprehension") screenQuiz("comprehension");
+    else if (S.screen === "vocabulary") screenQuiz("vocabulary");
+    else if (S.screen === "done") screenDone();
+  }
+
+  /* =========================================================================
+     6. FLOW
+     ========================================================================= */
+
+  function startReading() {
+    S.screen = "reading";
+    S.chunkIndex = 0;
+    S.activeWord = null;
+    S.readingStart = Date.now();
+    beginChunk();
+    render();
+  }
+
+  function beginChunk() {
+    S.chunkStart = Date.now();
+    S.passage.chunks[S.chunkIndex].readingTime.startedAt = iso(S.chunkStart);
+  }
+
+  function finishChunk() {
+    var now = Date.now();
+    var chunk = S.passage.chunks[S.chunkIndex];
+    chunk.readingTime.finishedAt = iso(now);
+    chunk.readingTime.durationMs = now - S.chunkStart;
+    logEvent("page_read", { chunkId: chunk.chunkId, durationMs: chunk.readingTime.durationMs });
+  }
+
+  function nextChunk() {
+    finishChunk();
+    S.activeWord = null;
+    if (S.chunkIndex + 1 < S.passage.chunks.length) {
+      S.chunkIndex++;
+      beginChunk();
+      render();
+    } else {
+      logEvent("reading_complete", { durationMs: Date.now() - S.readingStart });
+      S.screen = "comprehension";
+      S.qIndex = 0;
+      S.picked = null;
+      S.qStart = Date.now();
+      render();
+    }
+  }
+
+  function prevChunk() {
+    if (S.chunkIndex === 0) return;
+    finishChunk();
+    S.chunkIndex--;
+    S.activeWord = null;
+    beginChunk();
+    render();
+  }
+
+  function pickAnswer(i) {
+    if (S.picked !== null) return;
+    var list = S.screen === "comprehension" ? S.passage.comprehensionQuestions : S.passage.vocabQuestions;
+    var q = list[S.qIndex];
+    var ms = Date.now() - S.qStart;
+    S.picked = i;
+    q.answer = i;                      // index into options, matching correctIndex
+    q.score = i === q.correctIndex ? 1 : 0;
+    q.timeSpentMs = ms;
+    logEvent(S.screen === "comprehension" ? "comprehension_answer" : "vocab_answer", {
+      questionId: q.questionId, axis: q.axis, answer: i, correct: q.score === 1, timeSpentMs: ms
+    });
+    render();
+  }
+
+  function advance() {
+    var list = S.screen === "comprehension" ? S.passage.comprehensionQuestions : S.passage.vocabQuestions;
+    if (S.qIndex + 1 < list.length) {
+      S.qIndex++;
+      S.picked = null;
+      S.qStart = Date.now();
+      render();
+      return;
+    }
+    if (S.screen === "comprehension") {
+      S.screen = "vocabulary";
+      S.qIndex = 0;
+      S.picked = null;
+      S.qStart = Date.now();
+      render();
+      return;
+    }
+    var cGot = S.passage.comprehensionQuestions.filter(function (q) { return q.score === 1; }).length;
+    var vGot = S.passage.vocabQuestions.filter(function (q) { return q.score === 1; }).length;
+    logEvent("challenge_complete", {
+      comprehensionScore: cGot / S.passage.comprehensionQuestions.length,
+      vocabScore: vGot / S.passage.vocabQuestions.length,
+      unlocked: true
+    });
+    S.screen = "done";
+    render();
+  }
+
+  function tapWord(word, raw) {
+    S.activeWord = S.activeWord === word ? null : word;
+    if (S.activeWord) {
+      logEvent("word_tapped", {
+        word: word,
+        raw: raw,
+        chunkId: S.passage.chunks[S.chunkIndex].chunkId,
+        known: Object.prototype.hasOwnProperty.call(DEFINITIONS, word),
+        axis: "vocabulary"
+      });
+    }
+    render();
+  }
+
+  /* =========================================================================
+     7. INPUT — touch and Steam Deck buttons (A = Enter/Space, B = Escape)
+     ========================================================================= */
+
+  app.addEventListener("click", function (e) {
+    var w = e.target.closest("[data-word]");
+    if (w) { tapWord(w.getAttribute("data-word"), w.getAttribute("data-raw")); return; }
+
+    var pick = e.target.closest("[data-pick]");
+    if (pick) { pickAnswer(Number(pick.getAttribute("data-pick"))); return; }
+
+    var go = e.target.closest("[data-go]");
+    if (!go) return;
+    var action = go.getAttribute("data-go");
+    if (action === "read") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+    else if (action === "next") nextChunk();
+    else if (action === "dismiss") { S.activeWord = null; render(); }
+    else if (action === "advance") advance();
+    else if (action === "restart") reset();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (document.getElementById("dev").classList.contains("open")) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (S.screen === "start") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+      else if (S.screen === "reading") nextChunk();
+      else if (S.screen === "done") reset();
+      else if (S.picked !== null) advance();
+    } else if (e.key === "Escape" || e.key === "Backspace") {
+      e.preventDefault();
+      if (S.screen === "reading") { if (S.activeWord) { S.activeWord = null; render(); } else prevChunk(); }
+    }
+  });
+
+  /* =========================================================================
+     8. DEV DRAWER — proves every interaction produced structured data
+     ========================================================================= */
+
+  var dev = document.getElementById("dev");
+  var devout = document.getElementById("devout");
+  var saveBtn = dev.querySelector('[data-dev="save"]');
+
+  function devRender() {
+    devout.textContent = S.devTab === "payload"
+      ? JSON.stringify(S.passage, null, 2)
+      : JSON.stringify(EVENTS, null, 2);
+    dev.querySelectorAll(".tab").forEach(function (t) {
+      t.classList.toggle("on", t.getAttribute("data-tab") === S.devTab);
+    });
+  }
+
+  document.getElementById("devbtn").addEventListener("click", function () {
+    dev.classList.add("open");
+    devRender();
+  });
+
+  dev.addEventListener("click", function (e) {
+    if (e.target === dev) { dev.classList.remove("open"); return; }
+    var tab = e.target.closest("[data-tab]");
+    if (tab) { S.devTab = tab.getAttribute("data-tab"); devRender(); return; }
+    var act = e.target.closest("[data-dev]");
+    if (!act) return;
+    var kind = act.getAttribute("data-dev");
+    if (kind === "close") dev.classList.remove("open");
+    else if (kind === "copy") {
+      var text = devout.textContent;
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { act.textContent = "Copied"; setTimeout(function () { act.textContent = "Copy to clipboard"; }, 1400); });
+    } else if (kind === "save") {
+      saveFile();
+    }
+  });
+
+  var downloads = null;
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(function (d) {
+      downloads = d;
+      if (d) saveBtn.style.display = "";
+    }).catch(function () {});
+  }
+
+  function saveFile() {
+    if (!downloads) return;
+    var name = S.devTab === "payload" ? "passage_" + S.passage.passage.id + "_completed.json" : "events.json";
+    downloads.save({ filename: name, data: devout.textContent }).catch(function () {});
+  }
+
+  /* =========================================================================
+     9. BOOT
+     ========================================================================= */
+
+  function reset() {
+    loadPassage().then(function (data) {
+      S.passage = data;
+      S.screen = "start";
+      S.chunkIndex = 0;
+      S.qIndex = 0;
+      S.picked = null;
+      S.activeWord = null;
+      EVENTS.length = 0;
+      var c = document.getElementById("evcount");
+      if (c) c.textContent = "0";
+      render();
+    });
+  }
+
+  reset();
+})();
+</script>

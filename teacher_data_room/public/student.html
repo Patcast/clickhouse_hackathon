@@ -39,7 +39,7 @@
   </div>
 
   <div class="card">
-    <h2>Sessions</h2>
+    <h2>Recent sessions (last 30)</h2>
     <table id="sessionsTable">
       <thead><tr><th>Date</th><th>Passage</th><th>Lexile</th><th>WPM</th><th>Comprehension</th><th>Vocabulary</th><th>Reading time</th></tr></thead>
       <tbody></tbody>
@@ -80,21 +80,42 @@ async function load() {
     <div class="stat"><div class="v">${(avgTime / 1000).toFixed(0)}s</div><div class="l">Avg time / question</div></div>
     <div class="stat" style="grid-column: span 2"><div class="v" style="font-size:18px">${prof.label}</div><div class="l">${prof.note}</div></div>`;
 
-  const labels = sessions.map((r) => r.day);
+  // aggregate per school day (kids read 3-5 passages daily)
+  const byDay = new Map();
+  for (const r of sessions) {
+    if (!byDay.has(r.day)) byDay.set(r.day, []);
+    byDay.get(r.day).push(r);
+  }
+  const days = [...byDay.keys()];
+  const dayAvg = (fn) => days.map((d) => {
+    const rows = byDay.get(d);
+    return rows.reduce((s, r) => s + fn(r), 0) / rows.length;
+  });
 
   new Chart(document.getElementById('wpmChart'), {
     type: 'line',
-    data: { labels, datasets: [{ label: 'WPM', data: sessions.map((r) => r.wpm), borderColor: '#1a9e6c', backgroundColor: '#1a9e6c22', fill: true, tension: 0.3 }] },
-    options: { scales: { y: { beginAtZero: true } } },
+    data: {
+      labels: days,
+      datasets: [
+        { label: 'WPM (daily avg)', data: dayAvg((r) => r.wpm), borderColor: '#1a9e6c', backgroundColor: '#1a9e6c22', fill: true, tension: 0.3, yAxisID: 'y' },
+        { label: 'Lexile level read', data: dayAvg((r) => r.lexile_band), borderColor: '#8a5cf6', borderDash: [6, 4], tension: 0.3, yAxisID: 'y1', pointRadius: 0 },
+      ],
+    },
+    options: {
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: 'WPM' } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Lexile' } },
+      },
+    },
   });
 
   new Chart(document.getElementById('accChart'), {
     type: 'line',
     data: {
-      labels,
+      labels: days,
       datasets: [
-        { label: 'Comprehension %', data: sessions.map((r) => 100 * r.comp_correct / r.comp_total), borderColor: '#2b5cff', tension: 0.3 },
-        { label: 'Vocabulary %', data: sessions.map((r) => 100 * r.vocab_correct / r.vocab_total), borderColor: '#d99000', tension: 0.3 },
+        { label: 'Comprehension %', data: dayAvg((r) => 100 * r.comp_correct / r.comp_total), borderColor: '#2b5cff', tension: 0.3 },
+        { label: 'Vocabulary %', data: dayAvg((r) => 100 * r.vocab_correct / r.vocab_total), borderColor: '#d99000', tension: 0.3 },
       ],
     },
     options: { scales: { y: { min: 0, max: 100 } } },
@@ -120,7 +141,7 @@ async function load() {
     ? vocabGaps.map((v) => `<span class="chip">${v.vocab_word} ×${v.misses}</span>`).join('')
     : '<p class="muted">No missed vocabulary words 🎉</p>';
 
-  document.querySelector('#sessionsTable tbody').innerHTML = sessions.slice().reverse().map((r) => {
+  document.querySelector('#sessionsTable tbody').innerHTML = sessions.slice().reverse().slice(0, 30).map((r) => {
     const cp = 100 * r.comp_correct / r.comp_total, vp = 100 * r.vocab_correct / r.vocab_total;
     return `<tr>
       <td class="muted">${r.day}</td>

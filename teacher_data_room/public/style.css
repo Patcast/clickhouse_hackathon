@@ -50,3 +50,16 @@ tr.clickable:hover { background: #f0f3ff; }
 .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .muted { color: var(--muted); font-size: 13px; }
 canvas { max-height: 260px; }
+.diffgrid { display: grid; gap: 14px; }
+.diffrow { display: grid; grid-template-columns: 260px 1fr 90px; gap: 14px; align-items: center; }
+@media (max-width: 820px) { .diffrow { grid-template-columns: 1fr; gap: 4px; } }
+.diffrow label { display: flex; flex-direction: column; gap: 2px; }
+.diffrow label small { color: var(--muted); font-size: 12px; }
+.diffrow input[type="range"] { width: 100%; accent-color: var(--accent); }
+.diffval { font-weight: 700; font-size: 14px; text-align: right; }
+.diffactions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.diffactions button {
+  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.diffactions button:hover { filter: brightness(1.1); }

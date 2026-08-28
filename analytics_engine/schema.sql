@@ -14,6 +14,22 @@ CREATE TABLE IF NOT EXISTS students
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY student_id;
 
+-- Teacher-set difficulty targets, one live row per student.
+-- The three axes come from the CLEAR corpus (see dataset_reference.md):
+--   fk_grade_max    — Flesch-Kincaid grade ceiling (syntax axis)
+--   dale_chall_max  — New Dale-Chall ceiling (vocabulary axis)
+--   bt_easiness_min — BT_easiness floor, human-judged (higher = easier)
+CREATE TABLE IF NOT EXISTS student_difficulty
+(
+    student_id      UInt32,
+    fk_grade_max    Float32,
+    dale_chall_max  Float32,
+    bt_easiness_min Float32,
+    updated_at      DateTime64(3)
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY student_id;
+
 -- One row per completed reading session (summary grain)
 CREATE TABLE IF NOT EXISTS sessions
 (

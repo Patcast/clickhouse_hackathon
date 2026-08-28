@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teacher Data Room — Class 4B</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>📚 Class 4B <span class="sub">Reading analytics · live from ClickHouse</span></h1>
+    <span class="muted" id="asof"></span>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2>Students — sorted by who needs help first</h2>
+    <table id="studentTable">
+      <thead>
+        <tr>
+          <th>Student</th><th>Sessions</th><th>Avg WPM</th>
+          <th>Comprehension</th><th>Vocabulary</th><th>Trend</th><th>Last active</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted" style="margin-top:8px">Click a student for their full profile.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Class accuracy &amp; fluency over time</h2>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Hardest questions right now</h2>
+      <table id="hardTable">
+        <thead><tr><th>Question</th><th>Axis</th><th>% correct</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const pillClass = (pct) => pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'bad';
+
+async function load() {
+  const res = await fetch('/api/overview');
+  const { students, trend, hardestQuestions } = await res.json();
+
+  // headline stats
+  const classComp = (students.reduce((s, r) => s + r.comp_pct, 0) / students.length).toFixed(0);
+  const classVocab = (students.reduce((s, r) => s + r.vocab_pct, 0) / students.length).toFixed(0);
+  const classWpm = (students.reduce((s, r) => s + r.avg_wpm, 0) / students.length).toFixed(0);
+  const totalSessions = students.reduce((s, r) => s + Number(r.sessions), 0);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="v">${students.length}</div><div class="l">Students</div></div>
+    <div class="stat"><div class="v">${totalSessions}</div><div class="l">Reading sessions</div></div>
+    <div class="stat"><div class="v">${classWpm}</div><div class="l">Avg words / minute</div></div>
+    <div class="stat"><div class="v">${classComp}%</div><div class="l">Comprehension</div></div>
+    <div class="stat"><div class="v">${classVocab}%</div><div class="l">Vocabulary</div></div>`;
+
+  // student table
+  const tbody = document.querySelector('#studentTable tbody');
+  tbody.innerHTML = students.map((r) => {
+    const delta = r.recent_pct - r.baseline_pct;
+    const trendBadge = delta <= -15 ? `<span class="alert">▼ ${Math.abs(delta).toFixed(0)} pts</span>`
+                     : delta >= 15 ? `<span class="up">▲ ${delta.toFixed(0)} pts</span>`
+                     : '<span class="muted">steady</span>';
+    return `<tr class="clickable" onclick="location='student.html?id=${r.student_id}'">
+      <td><strong>${r.name || 'Student ' + r.student_id}</strong></td>
+      <td>${r.sessions}</td>
+      <td>${r.avg_wpm}</td>
+      <td><span class="pill ${pillClass(r.comp_pct)}">${r.comp_pct}%</span></td>
+      <td><span class="pill ${pillClass(r.vocab_pct)}">${r.vocab_pct}%</span></td>
+      <td>${trendBadge}</td>
+      <td class="muted">${String(r.last_active).slice(0, 10)}</td>
+    </tr>`;
+  }).join('');
+
+  // trend chart
+  new Chart(document.getElementById('trendChart'), {
+    data: {
+      labels: trend.map((t) => t.day),
+      datasets: [
+        { type: 'line', label: 'Accuracy %', data: trend.map((t) => t.accuracy_pct), borderColor: '#2b5cff', tension: 0.3, yAxisID: 'y' },
+        { type: 'line', label: 'Avg WPM', data: trend.map((t) => t.avg_wpm), borderColor: '#1a9e6c', tension: 0.3, yAxisID: 'y1' },
+      ],
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: 100, title: { display: true, text: '%' } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'WPM' } },
+      },
+    },
+  });
+
+  // hardest questions
+  document.querySelector('#hardTable tbody').innerHTML = hardestQuestions.map((h) => `
+    <tr>
+      <td>${h.prompt}<div class="muted">passage ${h.passage_id} · ${h.question_id}</div></td>
+      <td>${h.axis}</td>
+      <td><span class="pill ${pillClass(h.pct_correct)}">${h.pct_correct}%</span></td>
+    </tr>`).join('');
+
+  document.getElementById('asof').textContent = 'Updated ' + new Date().toLocaleString();
+}
+load();
+</script>
+</body>
+</html>

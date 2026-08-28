@@ -2,7 +2,10 @@ import type {
   ResultReceipt,
   ResultSubmission,
   SelectPassageRequest,
+  SessionFacadeSubmission,
   SessionDocument,
+  UserInfoEntity,
+  UserInfoUpsertRequest,
 } from "./contract.js";
 
 export class NoEligiblePassageError extends Error {}
@@ -34,6 +37,9 @@ export interface PassageRepository {
     sessionId: string,
     submission: ResultSubmission,
   ): Promise<ResultOutcome>;
+  getUserInfo(userId: string): Promise<UserInfoEntity | null>;
+  upsertUserInfo(request: UserInfoUpsertRequest): Promise<UserInfoEntity>;
+  submitUserResult(submission: SessionFacadeSubmission): Promise<ResultOutcome>;
   healthCheck?(): Promise<OperationalStoreHealth>;
   close?(): Promise<void>;
 }

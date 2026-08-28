@@ -5,8 +5,12 @@ import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { AnalyticsStore } from "./analytics.js";
 import {
+  passageFacadeDocumentSchema,
   resultSubmissionSchema,
   selectPassageRequestSchema,
+  sessionFacadeSubmissionSchema,
+  userIdSchema,
+  userInfoUpsertRequestSchema,
 } from "./contract.js";
 import {
   IdempotencyConflictError,
@@ -134,6 +138,158 @@ export function createApp(options: {
       },
       schemaVersion: "1.0",
     };
+  });
+
+  app.get("/api/v1/user-info", async (request, reply) => {
+    const query = request.query as { userId?: unknown };
+    const parsed = userIdSchema.safeParse(query.userId);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "userId is required",
+          details: parsed.error.flatten(),
+        },
+      });
+    }
+    const user = await options.repository.getUserInfo(parsed.data);
+    if (!user) {
+      return reply.code(404).send({
+        error: { code: "USER_NOT_FOUND", message: "User profile not found" },
+      });
+    }
+    reply.header("cache-control", "no-store");
+    return { schemaVersion: "1.0", user };
+  });
+
+  app.post("/api/v1/user-info", async (request, reply) => {
+    const parsed = userInfoUpsertRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "User profile is invalid",
+          details: parsed.error.flatten(),
+        },
+      });
+    }
+    const user = await options.repository.upsertUserInfo(parsed.data);
+    reply.header("cache-control", "no-store");
+    return reply.code(200).send({ schemaVersion: "1.0", user });
+  });
+
+  app.get("/api/v1/passage", async (request, reply) => {
+    const query = request.query as { userId?: unknown };
+    const parsedUserId = userIdSchema.safeParse(query.userId);
+    if (!parsedUserId.success) {
+      return reply.code(400).send({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "userId is required",
+          details: parsedUserId.error.flatten(),
+        },
+      });
+    }
+    const user = await options.repository.getUserInfo(parsedUserId.data);
+    if (!user) {
+      return reply.code(404).send({
+        error: { code: "USER_NOT_FOUND", message: "User profile not found" },
+      });
+    }
+    const rawKey = request.headers["idempotency-key"];
+    if (typeof rawKey !== "string" || !rawKey.trim()) {
+      return reply.code(400).send({
+        error: {
+          code: "IDEMPOTENCY_KEY_REQUIRED",
+          message: "Idempotency-Key is required for passage assignment",
+        },
+      });
+    }
+    const idempotencyKey = rawKey.trim();
+    const profile = user.readingProfile;
+    try {
+      const outcome = await options.repository.selectAndAssign(
+        {
+          schemaVersion: "1.0",
+          childId: user.id,
+          readingBand: {
+            system: "lexile",
+            min: profile.lexileBand.min,
+            target: profile.lexileBand.target,
+            max: profile.lexileBand.max,
+          },
+          preferences: {
+            categories: profile.preferredCategories,
+            topics: profile.preferredTopics,
+            fleschKincaidGrade: profile.fleschKincaidGrade,
+            daleChall: profile.daleChall,
+          },
+          excludePassageIds: [],
+        },
+        idempotencyKey,
+      );
+      const { sessionId: _sessionId, childId, ...document } = outcome.document;
+      const facade = passageFacadeDocumentSchema.parse({
+        ...document,
+        userId: childId,
+      });
+      reply.header("cache-control", "no-store");
+      reply.header("x-idempotent-replay", String(outcome.replayed));
+      return reply.code(200).send(facade);
+    } catch (error) {
+      if (error instanceof NoEligiblePassageError) {
+        return reply.code(422).send({
+          error: { code: "NO_ELIGIBLE_PASSAGE", message: error.message },
+        });
+      }
+      if (error instanceof IdempotencyConflictError) {
+        return reply.code(409).send({
+          error: { code: "IDEMPOTENCY_CONFLICT", message: error.message },
+        });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/v1/session", async (request, reply) => {
+    const parsed = sessionFacadeSubmissionSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Session document is invalid",
+          details: parsed.error.flatten(),
+        },
+      });
+    }
+    try {
+      const outcome = await options.repository.submitUserResult(parsed.data);
+      const receipt = outcome.receipt;
+      return reply.code(outcome.replayed ? 200 : 201).send({
+        schemaVersion: receipt.schemaVersion,
+        status: receipt.status,
+        receivedAt: receipt.receivedAt,
+        summary: receipt.summary,
+        analyticsSyncStatus: receipt.analyticsSyncStatus,
+      });
+    } catch (error) {
+      if (error instanceof SessionNotFoundError) {
+        return reply.code(404).send({
+          error: { code: "SESSION_NOT_FOUND", message: error.message },
+        });
+      }
+      if (error instanceof ResultConflictError) {
+        return reply.code(409).send({
+          error: { code: "RESULT_CONFLICT", message: error.message },
+        });
+      }
+      if (error instanceof InvalidSubmissionError) {
+        return reply.code(422).send({
+          error: { code: "INVALID_RESULT", message: error.message },
+        });
+      }
+      throw error;
+    }
   });
 
   app.post("/api/v1/passages/select", async (request, reply) => {

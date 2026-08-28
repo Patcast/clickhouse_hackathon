@@ -5,7 +5,10 @@ import {
   type ResultReceipt,
   type ResultSubmission,
   type SelectPassageRequest,
+  type SessionFacadeSubmission,
   type SessionDocument,
+  type UserInfoEntity,
+  type UserInfoUpsertRequest,
 } from "./contract.js";
 import {
   IdempotencyConflictError,
@@ -23,7 +26,7 @@ import {
   scoreSubmission,
   type ReadingEvent,
 } from "./scoring.js";
-import { buildSessionDocument } from "./session.js";
+import { buildSessionDocument, hydrateFacadeSubmission } from "./session.js";
 import { sha256, stableStringify } from "./utils.js";
 
 interface SessionRow {
@@ -34,6 +37,18 @@ interface SessionRow {
   result_summary: ResultReceipt["summary"] | null;
   result_received_at: Date | null;
   request_hash: string | null;
+}
+
+interface UserRow {
+  user_id: string;
+  lexile_min: number;
+  lexile_target: number;
+  lexile_max: number;
+  flesch_kincaid_grade: number;
+  dale_chall: number;
+  preferred_categories: Array<"Lit" | "Info">;
+  preferred_topics: string[];
+  updated_at: Date;
 }
 
 export class PostgresPassageRepository implements PassageRepository {
@@ -50,8 +65,8 @@ export class PostgresPassageRepository implements PassageRepository {
       await client.query("BEGIN");
       const requestHash = sha256(stableStringify(request));
       await client.query(
-        `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
-        [request.childId, idempotencyKey],
+        `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [request.childId],
       );
       const existing = await client.query<SessionRow>(
         `SELECT session_id, response_document, submission_hash, result_id,
@@ -81,8 +96,9 @@ export class PostgresPassageRepository implements PassageRepository {
       const candidate = await client.query<{
         passage_id: number;
         enriched_document: unknown;
+        last_assigned_at: Date | null;
       }>(
-        `SELECT p.passage_id, p.enriched_document
+        `SELECT p.passage_id, p.enriched_document, history.last_assigned_at
            FROM passages p
            LEFT JOIN LATERAL (
              SELECT max(rs.assigned_at) AS last_assigned_at
@@ -129,7 +145,10 @@ export class PostgresPassageRepository implements PassageRepository {
 
       const content = enrichedPassageSchema.parse(selected.enriched_document);
       const sessionId = randomUUID();
-      const assignedAt = new Date().toISOString();
+      const lastAssignedMs = selected.last_assigned_at?.getTime() ?? 0;
+      const assignedAt = new Date(
+        Math.max(Date.now(), lastAssignedMs + 1),
+      ).toISOString();
       const document = buildSessionDocument(
         content,
         request,
@@ -252,6 +271,84 @@ export class PostgresPassageRepository implements PassageRepository {
     }
   }
 
+  async getUserInfo(userId: string): Promise<UserInfoEntity | null> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT user_id, lexile_min, lexile_target, lexile_max,
+              flesch_kincaid_grade, dale_chall, preferred_categories,
+              preferred_topics, updated_at
+         FROM users
+        WHERE user_id = $1`,
+      [userId],
+    );
+    const row = result.rows[0];
+    return row ? this.userFromRow(row) : null;
+  }
+
+  async upsertUserInfo(
+    request: UserInfoUpsertRequest,
+  ): Promise<UserInfoEntity> {
+    const profile = request.readingProfile;
+    const result = await this.pool.query<UserRow>(
+      `INSERT INTO users (
+         user_id, lexile_min, lexile_target, lexile_max,
+         flesch_kincaid_grade, dale_chall, preferred_categories,
+         preferred_topics, profile_source
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8::text[], 'api')
+       ON CONFLICT (user_id) DO UPDATE SET
+         lexile_min = EXCLUDED.lexile_min,
+         lexile_target = EXCLUDED.lexile_target,
+         lexile_max = EXCLUDED.lexile_max,
+         flesch_kincaid_grade = EXCLUDED.flesch_kincaid_grade,
+         dale_chall = EXCLUDED.dale_chall,
+         preferred_categories = EXCLUDED.preferred_categories,
+         preferred_topics = EXCLUDED.preferred_topics,
+         profile_source = EXCLUDED.profile_source,
+         updated_at = now()
+       RETURNING user_id, lexile_min, lexile_target, lexile_max,
+                 flesch_kincaid_grade, dale_chall, preferred_categories,
+                 preferred_topics, updated_at`,
+      [
+        request.userId,
+        profile.lexileBand.min,
+        profile.lexileBand.target,
+        profile.lexileBand.max,
+        profile.fleschKincaidGrade,
+        profile.daleChall,
+        profile.preferredCategories,
+        profile.preferredTopics,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error("Postgres did not return the saved user");
+    return this.userFromRow(row);
+  }
+
+  async submitUserResult(
+    submission: SessionFacadeSubmission,
+  ): Promise<ResultOutcome> {
+    const found = await this.pool.query<{
+      session_id: string;
+      response_document: SessionDocument;
+    }>(
+      `SELECT session_id, response_document
+         FROM reading_sessions
+        WHERE child_id = $1
+          AND passage_id = $2
+          AND assigned_at = $3::timestamptz
+        LIMIT 2`,
+      [submission.userId, submission.passage.id, submission.assignedAt],
+    );
+    const assignment = found.rows[0];
+    if (!assignment || found.rows.length !== 1) {
+      throw new SessionNotFoundError("Reading assignment not found");
+    }
+    const normalized = hydrateFacadeSubmission(
+      assignment.response_document,
+      submission,
+    );
+    return this.submitResult(assignment.session_id, normalized);
+  }
+
   async healthCheck(): Promise<OperationalStoreHealth> {
     const result = await this.pool.query<{ reading_event_count: string }>(
       `SELECT count(*)::text AS reading_event_count FROM reading_events`,
@@ -279,6 +376,24 @@ export class PostgresPassageRepository implements PassageRepository {
       receivedAt: row.result_received_at.toISOString(),
       summary: row.result_summary,
       analyticsSyncStatus: "pending",
+    };
+  }
+
+  private userFromRow(row: UserRow): UserInfoEntity {
+    return {
+      id: row.user_id,
+      readingProfile: {
+        lexileBand: {
+          min: row.lexile_min,
+          target: row.lexile_target,
+          max: row.lexile_max,
+        },
+        fleschKincaidGrade: row.flesch_kincaid_grade,
+        daleChall: row.dale_chall,
+        preferredCategories: row.preferred_categories,
+        preferredTopics: row.preferred_topics,
+      },
+      updatedAt: row.updated_at.toISOString(),
     };
   }
 

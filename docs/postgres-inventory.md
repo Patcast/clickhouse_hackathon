@@ -251,7 +251,9 @@ Answers then appear in two places:
 
 At snapshot time, five result submissions contained 12 answered questions: eight correct and four incorrect. Both comprehension and vocabulary were 4/6 correct (66.67%), and median answer time was 1,350 ms. Across submitted documents, each axis had 15 question instances: six answered and nine unanswered. Unanswered abandoned questions did not create question-answer events.
 
-Production hardening: `correctIndex` is intentionally visible for hackathon v1 compatibility. A student-facing contract should keep answer keys server-side and return sanitized question documents.
+The stored assignment retains `correctIndex` for server-side scoring and the
+original hackathon UI. The live four-route learner facade now strips answer
+keys and server-scored fields from its response.
 
 ## Trial activity at snapshot time
 

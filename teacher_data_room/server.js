@@ -39,9 +39,11 @@ app.get('/api/overview', async (_req, res) => {
             max(s.finished_at)                                  AS last_active,
             round(avg(s.lexile_band))                           AS avg_band,
             round(100 * arrayAvg(arraySlice(groupArray(
-                (s.comp_correct + s.vocab_correct) / (s.comp_total + s.vocab_total)), -3)), 1) AS recent_pct,
+                (s.comp_correct + s.vocab_correct) / (s.comp_total + s.vocab_total)), -20)), 1) AS recent_pct,
             round(100 * arrayAvg(arraySlice(groupArray(
-                (s.comp_correct + s.vocab_correct) / (s.comp_total + s.vocab_total)), 1, 7)), 1) AS baseline_pct
+                (s.comp_correct + s.vocab_correct) / (s.comp_total + s.vocab_total)), 1, 20)), 1) AS baseline_pct,
+            round(arrayAvg(arraySlice(groupArray(s.lexile_band), -20))
+                - arrayAvg(arraySlice(groupArray(s.lexile_band), 1, 20))) AS band_growth
         FROM (SELECT * FROM sessions ORDER BY started_at) AS s
         LEFT JOIN (SELECT student_id, name FROM students FINAL) AS st USING (student_id)
         GROUP BY s.student_id

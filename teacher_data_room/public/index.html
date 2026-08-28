@@ -21,7 +21,7 @@
       <thead>
         <tr>
           <th>Student</th><th>Sessions</th><th>Avg WPM</th>
-          <th>Comprehension</th><th>Vocabulary</th><th>Trend</th><th>Last active</th>
+          <th>Comprehension</th><th>Vocabulary</th><th>Level growth</th><th>Trend</th><th>Last active</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -66,15 +66,19 @@ async function load() {
   const tbody = document.querySelector('#studentTable tbody');
   tbody.innerHTML = students.map((r) => {
     const delta = r.recent_pct - r.baseline_pct;
-    const trendBadge = delta <= -15 ? `<span class="alert">▼ ${Math.abs(delta).toFixed(0)} pts</span>`
-                     : delta >= 15 ? `<span class="up">▲ ${delta.toFixed(0)} pts</span>`
+    const trendBadge = delta <= -10 ? `<span class="alert">▼ ${Math.abs(delta).toFixed(0)} pts</span>`
+                     : delta >= 10 ? `<span class="up">▲ ${delta.toFixed(0)} pts</span>`
                      : '<span class="muted">steady</span>';
+    const growthBadge = r.band_growth <= -20 ? `<span class="alert">▼ ${Math.abs(r.band_growth)}L</span>`
+                      : r.band_growth >= 20 ? `<span class="up">▲ +${r.band_growth}L</span>`
+                      : '<span class="muted">±' + Math.abs(r.band_growth) + 'L</span>';
     return `<tr class="clickable" onclick="location='student.html?id=${r.student_id}'">
       <td><strong>${r.name || 'Student ' + r.student_id}</strong></td>
       <td>${r.sessions}</td>
       <td>${r.avg_wpm}</td>
       <td><span class="pill ${pillClass(r.comp_pct)}">${r.comp_pct}%</span></td>
       <td><span class="pill ${pillClass(r.vocab_pct)}">${r.vocab_pct}%</span></td>
+      <td>${growthBadge}</td>
       <td>${trendBadge}</td>
       <td class="muted">${String(r.last_active).slice(0, 10)}</td>
     </tr>`;

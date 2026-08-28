@@ -282,17 +282,17 @@
 
   /* -------------------------------------------------------------------------
      ONBOARDING via LibreChat
-     Sparky's turns are scripted below so the flow runs with no network. Point
-     LIBRECHAT_ENDPOINT at the LibreChat server and askSparky() will use it —
+     Alex's turns are scripted below so the flow runs with no network. Point
+     LIBRECHAT_ENDPOINT at the LibreChat server and askAlex() will use it —
      the screen does not care where the words come from.
      ------------------------------------------------------------------------- */
 
   var LIBRECHAT_ENDPOINT = null; // e.g. "https://librechat.example.com/api/ask"
 
-  var SPARKY_SCRIPT = [
+  var ALEX_SCRIPT = [
     {
       id: "likes",
-      say: "Hi Maya! I'm Sparky. Let's find you a book you'll actually want to finish.",
+      say: "Hi Maya! I'm Alex. Let's find you a book you'll actually want to finish.",
       ask: "What do you like reading about?",
       options: [{ label: "Animals" }, { label: "Space" }, { label: "Funny stories" }, { label: "Magic" }]
     },
@@ -319,8 +319,8 @@
     }
   ];
 
-  /* Returns the next thing Sparky says. Swap the body for a LibreChat call. */
-  function askSparky(stepIndex) {
+  /* Returns the next thing Alex says. Swap the body for a LibreChat call. */
+  function askAlex(stepIndex) {
     if (LIBRECHAT_ENDPOINT) {
       return fetch(LIBRECHAT_ENDPOINT, {
         method: "POST",
@@ -328,7 +328,7 @@
         body: JSON.stringify({ studentId: STUDENT.id, step: stepIndex, profile: S.ob })
       }).then(function (r) { return r.json(); });
     }
-    return Promise.resolve(SPARKY_SCRIPT[stepIndex] || null);
+    return Promise.resolve(ALEX_SCRIPT[stepIndex] || null);
   }
 
   /* =========================================================================
@@ -439,7 +439,7 @@
 
   function screenOnboarding() {
     var ob = S.ob;
-    var step = SPARKY_SCRIPT[ob.step] || null;
+    var step = ALEX_SCRIPT[ob.step] || null;
 
     var log = ob.log.map(function (m) {
       if (m.who === "kid") {
@@ -470,7 +470,7 @@
       "</div>";
     }
 
-    var done = ob.step >= SPARKY_SCRIPT.length;
+    var done = ob.step >= ALEX_SCRIPT.length;
     var lv = done ? ob.levels : null;
 
     app.className = "";
@@ -500,7 +500,7 @@
           '<span class="grow"></span>' +
           (done
             ? '<span style="font-size:clamp(13px,2vh,15px);color:var(--teal-dark);line-height:1.55;">We\'ll pick books that match these two levels — and change them as you read.</span>'
-            : '<span style="font-size:clamp(13px,2vh,15px);color:var(--muted);line-height:1.55;">Sparky works this out from your answers. It takes about a minute.</span>') +
+            : '<span style="font-size:clamp(13px,2vh,15px);color:var(--muted);line-height:1.55;">Alex works this out from your answers. It takes about a minute.</span>') +
         "</div>" +
 
       "</div>" +
@@ -508,7 +508,7 @@
       '<div class="row gap-lg">' +
         '<span class="row gap-sm"><span class="glyph">A</span><span class="hint">' + (done ? "Continue" : "Choose") + "</span></span>" +
         '<span class="grow"></span>' +
-        '<span class="hint-faint" style="font-size:15px;">Sparky runs on LibreChat &middot; answers set the two starting levels</span>' +
+        '<span class="hint-faint" style="font-size:15px;">Alex runs on LibreChat &middot; answers set the two starting levels</span>' +
       "</div>";
 
     var box = document.getElementById("oblog");
@@ -815,11 +815,11 @@
     S.screen = "onboarding";
     S.ob = { step: 0, log: [], likes: null, age: null, compCorrect: null, vocabCorrect: null, levels: null, askedAt: 0 };
     logEvent("onboarding_started", {});
-    pushSparky(0);
+    pushAlex(0);
   }
 
-  function pushSparky(i) {
-    askSparky(i).then(function (step) {
+  function pushAlex(i) {
+    askAlex(i).then(function (step) {
       if (!step) { render(); return; }
       S.ob.log.push({ who: "sparky", text: step.say });
       S.ob.log.push({ who: "sparky", text: step.ask, passage: step.passage || null });
@@ -830,7 +830,7 @@
 
   function pickOnboarding(i) {
     var ob = S.ob;
-    var step = SPARKY_SCRIPT[ob.step];
+    var step = ALEX_SCRIPT[ob.step];
     if (!step) return;
     var opt = step.options[i];
     var ms = Date.now() - ob.askedAt;
@@ -851,8 +851,8 @@
     });
 
     ob.step++;
-    if (ob.step < SPARKY_SCRIPT.length) {
-      pushSparky(ob.step);
+    if (ob.step < ALEX_SCRIPT.length) {
+      pushAlex(ob.step);
     } else {
       /* Placement model stand-in: age sets the baseline, each placement answer
          adjusts one axis. Replace with the real placement scoring. */

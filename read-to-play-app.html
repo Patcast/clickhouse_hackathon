@@ -1,4 +1,4 @@
-<title>Read to Play</title>
+<title>Little Alexandria</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
 <style>
   :root {
@@ -401,6 +401,19 @@
     whale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/><path d="M12 4c3 0 5.5 2.2 5.5 5 0 2-1 3.2-1 4.5"/><path d="M6.5 11.5C6.5 7.9 9 5 12 4"/><circle cx="14.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/></svg>'
   };
 
+  /* Brand mark: a classical column that is also a stack of books. */
+  var LOGO =
+    '<svg viewBox="0 0 64 64" aria-hidden="true" style="width:100%;height:100%;display:block;">' +
+      '<rect x="16" y="9" width="32" height="6" rx="2.5" fill="#115e59"/>' +
+      '<rect x="19" y="18" width="26" height="9" rx="2.5" fill="#0f766e"/>' +
+      '<rect x="17" y="29" width="30" height="9" rx="2.5" fill="#d97706"/>' +
+      '<rect x="20" y="40" width="24" height="9" rx="2.5" fill="#0f766e"/>' +
+      '<rect x="14" y="51" width="36" height="6" rx="2.5" fill="#115e59"/>' +
+      '<path d="M23 20.5 V24.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+      '<path d="M21 31.5 V35.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+      '<path d="M24 42.5 V46.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+    "</svg>";
+
   function ico(name, size, color) {
     return '<span style="display:inline-flex;width:' + size + 'px;height:' + size + 'px;color:' + (color || "currentColor") + ';">' + ICON[name] + "</span>";
   }
@@ -463,8 +476,8 @@
     app.className = "";
     app.innerHTML =
       '<div class="row gap-md">' +
-        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
-        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Read to Play</span>' +
+        '<span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + LOGO + "</span>" +
+        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Little Alexandria</span>' +
         '<span class="grow"></span>' +
         '<span class="pill pill-teal" style="font-weight:700;">Setting up your reading profile</span>' +
       "</div>" +
@@ -522,8 +535,8 @@
     app.className = "";
     app.innerHTML =
       '<div class="row gap-md">' +
-        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
-        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Read to Play</span>' +
+        '<span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + LOGO + "</span>" +
+        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Little Alexandria</span>' +
         '<span class="grow"></span>' +
         '<span class="pill pill-streak">' + ico("flame", 18, "var(--amber)") + STUDENT.streak + " day streak</span>" +
         '<span style="font-size:17px;font-weight:700;color:var(--ink-2);">' + esc(STUDENT.name) + "</span>" +

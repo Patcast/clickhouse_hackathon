@@ -10,6 +10,23 @@
 const API = process.env.ANALYTICS_ENGINE_URL || 'http://localhost:3001';
 const CLASS_ID = 'class-4b';
 
+// Optional flags to seed EXTRA periods without duplicating data:
+//   --from / --to    date range (default 2026-07-27 .. 2026-08-28)
+//   --day-offset     shifts the progression-curve day index, so a range BEFORE
+//                    the default window (negative offset) extends every
+//                    student's growth curve backwards continuously
+//   --rng            RNG seed for session randomness (answers, timings);
+//                    passages always use the fixed seed so their content and
+//                    correct answers stay identical across runs
+function getFlag(name, dflt) {
+  const i = process.argv.indexOf(name);
+  return i > -1 ? process.argv[i + 1] : dflt;
+}
+const FROM = getFlag('--from', '2026-07-27');
+const TO = getFlag('--to', '2026-08-28');
+const DAY_OFFSET = Number(getFlag('--day-offset', '0'));
+const RNG_SEED = Number(getFlag('--rng', '20260828'));
+
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -18,13 +35,13 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(20260828);
+let rand = mulberry32(20260828); // fixed seed while passages are built; re-seeded after
 const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// ---- 25 school days (weekdays only), Mon 2026-07-27 -> Fri 2026-08-28
+// ---- school days (weekdays only) in the requested range
 const SCHOOL_DAYS = [];
-for (let d = new Date(Date.UTC(2026, 6, 27)); d <= new Date(Date.UTC(2026, 7, 28)); d.setUTCDate(d.getUTCDate() + 1)) {
+for (let d = new Date(`${FROM}T00:00:00Z`); d <= new Date(`${TO}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
   const dow = d.getUTCDay();
   if (dow >= 1 && dow <= 5) SCHOOL_DAYS.push(new Date(d));
 }
@@ -111,6 +128,9 @@ const PASSAGES = Array.from({ length: 24 }, (_, i) => {
     })),
   };
 });
+
+// passages are now fixed — switch to the run-specific RNG for session randomness
+rand = mulberry32(RNG_SEED);
 
 // adaptive passage choice: read near your current level (a little stretch)
 function pickPassage(studentAbility) {
@@ -199,21 +219,22 @@ async function post(payload) {
 
 async function seedStudent(student) {
   let count = 0;
-  for (let day = 0; day < SCHOOL_DAYS.length; day++) {
+  for (let i = 0; i < SCHOOL_DAYS.length; i++) {
+    const day = i + DAY_OFFSET; // curve index: negative offsets extend history backwards
     const nSessions = 3 + Math.floor(rand() * 3); // 3-5 passages a day
     for (let slot = 0; slot < nSessions; slot++) {
       const template = pickPassage(ability(student, day));
-      await post(buildSession(student, template, SCHOOL_DAYS[day], day, slot));
+      await post(buildSession(student, template, SCHOOL_DAYS[i], day, slot));
       count++;
     }
   }
-  const a0 = ability(student, 0), a1 = ability(student, SCHOOL_DAYS.length - 1);
+  const a0 = ability(student, DAY_OFFSET), a1 = ability(student, DAY_OFFSET + SCHOOL_DAYS.length - 1);
   console.log(`  ${student.name} (${student.persona}) — ${count} sessions, ${Math.round(a0)}L -> ${Math.round(a1)}L`);
   return count;
 }
 
 async function main() {
-  console.log(`Seeding ${STUDENTS.length} students x 3-5 sessions/day x ${SCHOOL_DAYS.length} school days -> ${API}/api/sessions`);
+  console.log(`Seeding ${STUDENTS.length} students x 3-5 sessions/day x ${SCHOOL_DAYS.length} school days (${FROM} .. ${TO}, curve days ${DAY_OFFSET}..${DAY_OFFSET + SCHOOL_DAYS.length - 1}) -> ${API}/api/sessions`);
   const counts = await Promise.all(STUDENTS.map(seedStudent)); // students seed concurrently
   console.log(`Seed complete: ${counts.reduce((a, b) => a + b, 0)} sessions inserted.`);
 }

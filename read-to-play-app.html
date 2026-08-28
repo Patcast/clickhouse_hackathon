@@ -277,8 +277,59 @@
     mountains: { pos: "noun",      meaning: "Very tall hills made of rock." }
   };
 
-  /* The reader. In the real app this comes from the profile service. */
-  var STUDENT = { id: "s1", name: "Maya", comprehensionLevel: 2, vocabLevel: 1, streak: 5 };
+  /* The reader. Levels start as defaults and are set by onboarding. */
+  var STUDENT = { id: "s1", name: "Maya", comprehensionLevel: 2, vocabLevel: 1, likes: null, streak: 5 };
+
+  /* -------------------------------------------------------------------------
+     ONBOARDING via LibreChat
+     Sparky's turns are scripted below so the flow runs with no network. Point
+     LIBRECHAT_ENDPOINT at the LibreChat server and askSparky() will use it —
+     the screen does not care where the words come from.
+     ------------------------------------------------------------------------- */
+
+  var LIBRECHAT_ENDPOINT = null; // e.g. "https://librechat.example.com/api/ask"
+
+  var SPARKY_SCRIPT = [
+    {
+      id: "likes",
+      say: "Hi Maya! I'm Sparky. Let's find you a book you'll actually want to finish.",
+      ask: "What do you like reading about?",
+      options: [{ label: "Animals" }, { label: "Space" }, { label: "Funny stories" }, { label: "Magic" }]
+    },
+    {
+      id: "age",
+      say: "Good pick — I know some great ones.",
+      ask: "How old are you?",
+      options: [{ label: "7" }, { label: "8" }, { label: "9" }, { label: "10" }]
+    },
+    {
+      id: "placement",
+      say: "Now a tiny bit of reading, so I get the level right.",
+      passage: "The little otter slipped into the cold river and swam after the silver fish.",
+      ask: "What did the otter swim after?",
+      axis: "comprehension",
+      options: [{ label: "A silver fish", correct: true }, { label: "A cold rock" }, { label: "A little boat" }]
+    },
+    {
+      id: "vocab",
+      say: "Nearly done — one word for you.",
+      ask: "In that sentence, what does “slipped” mean?",
+      axis: "vocabulary",
+      options: [{ label: "Moved quietly and smoothly", correct: true }, { label: "Fell asleep" }, { label: "Shouted loudly" }]
+    }
+  ];
+
+  /* Returns the next thing Sparky says. Swap the body for a LibreChat call. */
+  function askSparky(stepIndex) {
+    if (LIBRECHAT_ENDPOINT) {
+      return fetch(LIBRECHAT_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: STUDENT.id, step: stepIndex, profile: S.ob })
+      }).then(function (r) { return r.json(); });
+    }
+    return Promise.resolve(SPARKY_SCRIPT[stepIndex] || null);
+  }
 
   /* =========================================================================
      2. EVENT LOGGING
@@ -316,7 +367,8 @@
     qStart: 0,
     picked: null,
     activeWord: null,
-    devTab: "payload"
+    devTab: "payload",
+    ob: null
   };
 
   var app = document.getElementById("app");
@@ -344,6 +396,8 @@
     page:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2z"/><path d="M8 12h7"/><path d="M8 16h5"/></svg>',
     help:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
     lock:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
+    sparky: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8.5" cy="9" r="1.8"/><circle cx="15.5" cy="9" r="1.8"/><circle cx="6" cy="14.5" r="1.6"/><circle cx="18" cy="14.5" r="1.6"/><ellipse cx="12" cy="16" rx="4.2" ry="3.4"/></svg>',
+    dot:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="7"/></svg>',
     whale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/><path d="M12 4c3 0 5.5 2.2 5.5 5 0 2-1 3.2-1 4.5"/><path d="M6.5 11.5C6.5 7.9 9 5 12 4"/><circle cx="14.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/></svg>'
   };
 
@@ -369,6 +423,84 @@
   /* =========================================================================
      5. SCREENS
      ========================================================================= */
+
+  function screenOnboarding() {
+    var ob = S.ob;
+    var step = SPARKY_SCRIPT[ob.step] || null;
+
+    var log = ob.log.map(function (m) {
+      if (m.who === "kid") {
+        return '<div style="align-self:flex-end;background:var(--teal);color:#fff;border-radius:18px 18px 4px 18px;padding:clamp(10px,1.8vh,15px) clamp(14px,1.4vw,20px);font-size:clamp(14px,2.1vh,19px);font-weight:700;max-width:78%;">' + esc(m.text) + "</div>";
+      }
+      var passage = m.passage
+        ? '<div style="margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:clamp(12px,2vh,18px);font-size:clamp(15px,2.4vh,21px);line-height:1.65;color:var(--ink);">' + esc(m.passage) + "</div>"
+        : "";
+      return '<div class="row" style="gap:11px;align-items:flex-start;max-width:88%;">' +
+          '<span style="width:38px;height:38px;border-radius:50%;background:var(--teal);color:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="width:56%;display:block;">' + ICON.sparky + "</span></span>" +
+          '<div style="background:var(--card);border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:clamp(10px,1.8vh,15px) clamp(14px,1.4vw,20px);font-size:clamp(14px,2.1vh,19px);line-height:1.55;color:var(--ink);">' + esc(m.text) + passage + "</div>" +
+        "</div>";
+    }).join("");
+
+    var chips = step
+      ? '<div class="row" style="gap:clamp(8px,1vw,14px);flex-wrap:wrap;justify-content:flex-end;">' +
+          step.options.map(function (o, i) {
+            return '<button data-ob="' + i + '" style="background:var(--card);border:2px solid var(--teal);color:var(--teal);border-radius:999px;padding:clamp(11px,1.9vh,17px) clamp(18px,1.9vw,28px);font-size:clamp(14px,2.1vh,19px);font-weight:800;min-height:52px;">' + esc(o.label) + "</button>";
+          }).join("") +
+        "</div>"
+      : '<div class="row" style="justify-content:flex-end;"><button class="btn-primary" data-go="profile-done">Find my book' + ico("arrow", 22) + "</button></div>";
+
+    function pRow(label, value, filled) {
+      return '<div class="row" style="gap:12px;">' +
+        '<span style="width:22px;color:' + (filled ? "var(--green)" : "#cfcac5") + ';display:block;flex-shrink:0;">' + (filled ? ICON.check : ICON.dot) + "</span>" +
+        '<span style="font-size:clamp(13px,2vh,16px);font-weight:700;color:' + (filled ? "var(--ink)" : "var(--faint)") + ';" class="grow">' + label + "</span>" +
+        '<span style="font-size:clamp(13px,2vh,16px);font-weight:800;color:' + (filled ? "var(--teal)" : "#cfcac5") + ';">' + esc(value) + "</span>" +
+      "</div>";
+    }
+
+    var done = ob.step >= SPARKY_SCRIPT.length;
+    var lv = done ? ob.levels : null;
+
+    app.className = "";
+    app.innerHTML =
+      '<div class="row gap-md">' +
+        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
+        '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Read to Play</span>' +
+        '<span class="grow"></span>' +
+        '<span class="pill pill-teal" style="font-weight:700;">Setting up your reading profile</span>' +
+      "</div>" +
+
+      '<div class="row" style="gap:clamp(16px,2.2vw,28px);flex-grow:1;align-items:stretch;min-height:0;">' +
+
+        '<div class="card" style="flex:1.7;padding:clamp(16px,2.8vh,28px);display:flex;flex-direction:column;gap:clamp(12px,2vh,20px);min-width:0;">' +
+          '<div id="oblog" style="flex-grow:1;overflow:auto;display:flex;flex-direction:column;gap:clamp(10px,1.8vh,16px);">' + log + "</div>" +
+          chips +
+        "</div>" +
+
+        '<div style="flex:1;background:var(--teal-pale);border:2px solid var(--teal-line);border-radius:22px;padding:clamp(16px,2.8vh,28px);display:flex;flex-direction:column;gap:clamp(12px,2.2vh,20px);min-width:0;">' +
+          '<span style="font-size:13px;font-weight:800;color:var(--teal);letter-spacing:.06em;">' + (done ? "PROFILE READY" : "BUILDING YOUR PROFILE…") + "</span>" +
+          '<div class="col" style="gap:clamp(10px,1.8vh,16px);">' +
+            pRow("Likes", ob.likes || "—", !!ob.likes) +
+            pRow("Age", ob.age ? String(ob.age) : "—", !!ob.age) +
+            pRow("Comprehension", lv ? "Level " + lv.comprehension : "—", !!lv) +
+            pRow("Vocabulary", lv ? "Level " + lv.vocab : "—", !!lv) +
+          "</div>" +
+          '<span class="grow"></span>' +
+          (done
+            ? '<span style="font-size:clamp(13px,2vh,15px);color:var(--teal-dark);line-height:1.55;">We\'ll pick books that match these two levels — and change them as you read.</span>'
+            : '<span style="font-size:clamp(13px,2vh,15px);color:var(--muted);line-height:1.55;">Sparky works this out from your answers. It takes about a minute.</span>') +
+        "</div>" +
+
+      "</div>" +
+
+      '<div class="row gap-lg">' +
+        '<span class="row gap-sm"><span class="glyph">A</span><span class="hint">' + (done ? "Continue" : "Choose") + "</span></span>" +
+        '<span class="grow"></span>' +
+        '<span class="hint-faint" style="font-size:15px;">Sparky runs on LibreChat &middot; answers set the two starting levels</span>' +
+      "</div>";
+
+    var box = document.getElementById("oblog");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
 
   function screenStart() {
     var p = S.passage.passage;
@@ -654,7 +786,8 @@
   }
 
   function render() {
-    if (S.screen === "start") screenStart();
+    if (S.screen === "onboarding") screenOnboarding();
+    else if (S.screen === "start") screenStart();
     else if (S.screen === "reading") screenReading();
     else if (S.screen === "comprehension") screenQuiz("comprehension");
     else if (S.screen === "vocabulary") screenQuiz("vocabulary");
@@ -664,6 +797,75 @@
   /* =========================================================================
      6. FLOW
      ========================================================================= */
+
+  function startOnboarding() {
+    S.screen = "onboarding";
+    S.ob = { step: 0, log: [], likes: null, age: null, compCorrect: null, vocabCorrect: null, levels: null, askedAt: 0 };
+    logEvent("onboarding_started", {});
+    pushSparky(0);
+  }
+
+  function pushSparky(i) {
+    askSparky(i).then(function (step) {
+      if (!step) { render(); return; }
+      S.ob.log.push({ who: "sparky", text: step.say });
+      S.ob.log.push({ who: "sparky", text: step.ask, passage: step.passage || null });
+      S.ob.askedAt = Date.now();
+      render();
+    });
+  }
+
+  function pickOnboarding(i) {
+    var ob = S.ob;
+    var step = SPARKY_SCRIPT[ob.step];
+    if (!step) return;
+    var opt = step.options[i];
+    var ms = Date.now() - ob.askedAt;
+
+    ob.log.push({ who: "kid", text: opt.label });
+
+    if (step.id === "likes") ob.likes = opt.label;
+    else if (step.id === "age") ob.age = Number(opt.label);
+    else if (step.axis === "comprehension") ob.compCorrect = !!opt.correct;
+    else if (step.axis === "vocabulary") ob.vocabCorrect = !!opt.correct;
+
+    logEvent("onboarding_answer", {
+      stepId: step.id,
+      axis: step.axis || null,
+      answer: i,
+      correct: step.axis ? !!opt.correct : null,
+      timeSpentMs: ms
+    });
+
+    ob.step++;
+    if (ob.step < SPARKY_SCRIPT.length) {
+      pushSparky(ob.step);
+    } else {
+      /* Placement model stand-in: age sets the baseline, each placement answer
+         adjusts one axis. Replace with the real placement scoring. */
+      var base = Math.max(1, (ob.age || 8) - 6);
+      ob.levels = {
+        comprehension: Math.max(1, base + (ob.compCorrect ? 0 : -1)),
+        vocab: Math.max(1, base + (ob.vocabCorrect ? 0 : -1))
+      };
+      ob.log.push({ who: "sparky", text: "All done! You're at comprehension level " + ob.levels.comprehension + " and vocabulary level " + ob.levels.vocab + ". Let's find your book." });
+      logEvent("profile_created", {
+        comprehensionLevel: ob.levels.comprehension,
+        vocabLevel: ob.levels.vocab,
+        likes: ob.likes,
+        age: ob.age
+      });
+      render();
+    }
+  }
+
+  function finishOnboarding() {
+    STUDENT.comprehensionLevel = S.ob.levels.comprehension;
+    STUDENT.vocabLevel = S.ob.levels.vocab;
+    STUDENT.likes = S.ob.likes;
+    S.screen = "start";
+    render();
+  }
 
   function startReading() {
     S.screen = "reading";
@@ -778,6 +980,9 @@
     var w = e.target.closest("[data-word]");
     if (w) { tapWord(w.getAttribute("data-word"), w.getAttribute("data-raw")); return; }
 
+    var ob = e.target.closest("[data-ob]");
+    if (ob) { pickOnboarding(Number(ob.getAttribute("data-ob"))); return; }
+
     var pick = e.target.closest("[data-pick]");
     if (pick) { pickAnswer(Number(pick.getAttribute("data-pick"))); return; }
 
@@ -788,6 +993,7 @@
     else if (action === "next") nextChunk();
     else if (action === "dismiss") { S.activeWord = null; render(); }
     else if (action === "advance") advance();
+    else if (action === "profile-done") finishOnboarding();
     else if (action === "restart") reset();
   });
 
@@ -795,7 +1001,8 @@
     if (document.getElementById("dev").classList.contains("open")) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      if (S.screen === "start") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+      if (S.screen === "onboarding") { if (S.ob && S.ob.levels) finishOnboarding(); }
+      else if (S.screen === "start") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
       else if (S.screen === "reading") nextChunk();
       else if (S.screen === "done") reset();
       else if (S.picked !== null) advance();
@@ -864,7 +1071,6 @@
   function reset() {
     loadPassage().then(function (data) {
       S.passage = data;
-      S.screen = "start";
       S.chunkIndex = 0;
       S.qIndex = 0;
       S.picked = null;
@@ -872,7 +1078,7 @@
       EVENTS.length = 0;
       var c = document.getElementById("evcount");
       if (c) c.textContent = "0";
-      render();
+      startOnboarding();
     });
   }
 

@@ -1,0 +1,171 @@
+{
+  "passage": {
+    "id": 2513,
+    "title": "No Pigs Allowed",
+    "author": "Basilio Gimo and Little Zebra Books",
+    "source": "African Storybook Level 4",
+    "license": "CC BY 4.0",
+    "category": "Lit",
+    "lexileBand": 500,
+    "fleschKincaidGrade": 2.12,
+    "daleChall": 4.96,
+    "wordCount": 200,
+    "coverImageUrl": "https://placeholder.example.com/passages/2513/cover.png"
+  },
+  "chunks": [
+    {
+      "chunkId": 1,
+      "text": "Years ago, a group of horned animals decided to have a big party high up in the mountains. They only invited other animals with horns. No one else.",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "chunkId": 2,
+      "text": "When the pig heard about the party, he thought, \"I don't have any horns. What am I going to do?\" The next day, he had an idea. He'd stick some horns to his head with wax!",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "chunkId": 3,
+      "text": "It worked, and the pig felt very clever when he was allowed into the party. The problem was that the party was taking place close to the sun.",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "chunkId": 4,
+      "text": "When the party started heating up, the wax began to melt, and his horns fell off. The horned animals were shocked. \"Who's that one with no horns? Why did he come here?\" they asked.",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "chunkId": 5,
+      "text": "The king of the horned animals commanded, \"Grab that pig and throw him down to earth.\" So all the animals, when they heard the king's words, did just that. They grabbed the pig and threw him down to earth.",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "chunkId": 6,
+      "text": "Poor pig! When he fell, he landed on his nose. And his nose was flattened into a snout. Their job done, all the other animals returned to the party. They ate and danced all night.",
+      "readingTime": {
+        "startedAt": null,
+        "finishedAt": null,
+        "durationMs": null
+      }
+    }
+  ],
+  "comprehensionQuestions": [
+    {
+      "questionId": "c1",
+      "axis": "comprehension",
+      "prompt": "Why did the pig stick horns to his head with wax?",
+      "options": [
+        "Because he wanted to look scary",
+        "Because only animals with horns were invited to the party",
+        "Because the king told him to",
+        "Because his own horns had fallen off"
+      ],
+      "correctIndex": 1,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    },
+    {
+      "questionId": "c2",
+      "axis": "comprehension",
+      "prompt": "What made the pig's horns fall off?",
+      "options": [
+        "The other animals pulled them off",
+        "He fell down to earth",
+        "The party was close to the sun and the wax melted",
+        "He danced too hard"
+      ],
+      "correctIndex": 2,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    },
+    {
+      "questionId": "c3",
+      "axis": "comprehension",
+      "prompt": "According to the story, why do pigs have flat noses today?",
+      "options": [
+        "The pig landed on his nose when he was thrown down to earth",
+        "The pig pressed his nose against the mountain",
+        "The wax stuck to his nose",
+        "The king flattened it as punishment"
+      ],
+      "correctIndex": 0,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    }
+  ],
+  "vocabQuestions": [
+    {
+      "questionId": "v1",
+      "axis": "vocabulary",
+      "word": "horned",
+      "imageUrl": "https://placeholder.example.com/vocab/horned.png",
+      "prompt": "What does \"horned\" mean?",
+      "options": [
+        "Having horns on the head",
+        "Very loud",
+        "Living in the mountains",
+        "Angry"
+      ],
+      "correctIndex": 0,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    },
+    {
+      "questionId": "v2",
+      "axis": "vocabulary",
+      "word": "commanded",
+      "imageUrl": "https://placeholder.example.com/vocab/commanded.png",
+      "prompt": "The king \"commanded\" the animals. What did he do?",
+      "options": [
+        "He asked them politely",
+        "He gave them an order",
+        "He sang to them",
+        "He thanked them"
+      ],
+      "correctIndex": 1,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    },
+    {
+      "questionId": "v3",
+      "axis": "vocabulary",
+      "word": "snout",
+      "imageUrl": "https://placeholder.example.com/vocab/snout.png",
+      "prompt": "What is a \"snout\"?",
+      "options": [
+        "A kind of party",
+        "A pair of horns",
+        "An animal's nose and mouth that stick out",
+        "A ball of wax"
+      ],
+      "correctIndex": 2,
+      "answer": null,
+      "score": 0,
+      "timeSpentMs": null
+    }
+  ]
+}

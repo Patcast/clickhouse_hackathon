@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-cream: var(--cream);
+  --color-forest: var(--forest);
+  --color-mint: var(--mint);
+  --color-mint-dark: var(--mint-dark);
+  --color-coral: var(--coral);
+  --color-coral-dark: var(--coral-dark);
+  --color-coral-soft: var(--coral-soft);
+  --color-sand: var(--sand);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: Georgia, 'Times New Roman', serif;
+}
+
+:root {
+  --background: #fbfaf4;
+  --foreground: #123c32;
+  --cream: #fbfaf4;
+  --forest: #134638;
+  --mint: #dff5e9;
+  --mint-dark: #68c99f;
+  --coral: #ef765e;
+  --coral-dark: #a74332;
+  --coral-soft: #fff0eb;
+  --sand: #f1eee3;
+  --card: #ffffff;
+  --card-foreground: #123c32;
+  --primary: #134638;
+  --primary-foreground: #ffffff;
+  --muted: #f1eee3;
+  --muted-foreground: #5f756f;
+  --border: #dce3dd;
+  --ring: #68c99f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  }
+
+  ::selection {
+    background: #b9e8d3;
+    color: #123c32;
+  }
+}

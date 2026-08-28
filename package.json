@@ -1,0 +1,36 @@
+{
+  "name": "read-to-play-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Passage selection and reading telemetry API for the ClickHouse hackathon.",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --watch --import tsx src/local.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/local.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate-postgres.ts",
+    "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-clear.ts",
+    "db:clickhouse": "node --env-file-if-exists=.env --import tsx scripts/migrate-clickhouse.ts",
+    "db:verify": "node --env-file-if-exists=.env --import tsx scripts/verify-connections.ts",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.23.1",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.3",
+    "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
+    "fastify": "^5.12.1",
+    "pg": "^8.23.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.5.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
+  }
+}

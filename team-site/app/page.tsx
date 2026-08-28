@@ -6,7 +6,7 @@ const interfaces = [
     title: 'Choose a passage',
     description:
       'Load the learner profile, select one matched passage, and return the complete reading document.',
-    status: 'Compatibility route needed',
+    status: 'Live',
   },
   {
     number: '02',
@@ -15,7 +15,7 @@ const interfaces = [
     title: 'Save the session',
     description:
       'Return the passage document with reading, answer, and interaction fields filled. The backend creates its internal session ID.',
-    status: 'Compatibility route needed',
+    status: 'Live',
   },
   {
     number: '03',
@@ -24,7 +24,7 @@ const interfaces = [
     title: 'Read a learner profile',
     description:
       'Retrieve the Lexile band, Flesch–Kincaid grade, and Dale–Chall difficulty used for matching.',
-    status: 'New route',
+    status: 'Live',
   },
   {
     number: '04',
@@ -32,8 +32,8 @@ const interfaces = [
     path: '/api/v1/user-info',
     title: 'Update a learner profile',
     description:
-      'Let a professor or demo operator change the three matching signals for the hard-coded user.',
-    status: 'New route',
+      'Let a professor or demo operator update the complete matching profile for a pseudonymous user.',
+    status: 'Live',
   },
 ];
 
@@ -43,17 +43,18 @@ const repository =
 const contractArtifact =
   'https://claude.ai/code/artifact/24ba5366-8d2d-4ec7-8feb-3e79ee299c42';
 
-const getPassageExample = `GET /api/v1/passage?userId=user_demo_001
-Accept: application/json`;
+const getPassageExample = `GET /api/v1/passage?userId=user_demo_003
+Accept: application/json
+Idempotency-Key: alexandria-assignment-001`;
 
 const getPassageResponse = `{
   "schemaVersion": "1.0",
-  "userId": "user_demo_001",
+  "userId": "user_demo_003",
   "assignedAt": "2026-08-28T22:30:00.000Z",
   "sessionStatus": "assigned",
   "selection": {
-    "algorithmVersion": "profile-match-v1",
-    "reasonCodes": ["LEXILE_MATCH", "CATEGORY_MATCH"]
+    "algorithmVersion": "band-match-v1",
+    "reasonCodes": ["READING_BAND_MATCH", "CATEGORY_PREFERENCE_MATCH"]
   },
   "passage": {
     "id": 2513,
@@ -83,11 +84,7 @@ const getPassageResponse = `{
     "chunkId": 2,
     "prompt": "…",
     "options": ["…", "…"],
-    "correctIndex": 1,
     "answer": null,
-    "isCorrect": null,
-    "score": 0,
-    "maxScore": 1,
     "timeSpentMs": null
   }],
   "vocabQuestions": [{
@@ -96,7 +93,6 @@ const getPassageResponse = `{
     "imageUrl": null,
     "prompt": "…",
     "options": ["…", "…"],
-    "correctIndex": 0,
     "answer": null,
     "timeSpentMs": null
   }],
@@ -105,11 +101,10 @@ const getPassageResponse = `{
 
 const postSessionExample = `POST /api/v1/session
 Content-Type: application/json
-Idempotency-Key: alex-session-001
 
 {
   "schemaVersion": "1.0",
-  "userId": "user_demo_001",
+  "userId": "user_demo_003",
   "assignedAt": "2026-08-28T22:30:00.000Z",
   "sessionStatus": "completed",
   "sessionStartedAt": "2026-08-28T22:30:10.000Z",
@@ -161,17 +156,19 @@ const sessionReceipt = `HTTP/1.1 201 Created
   "analyticsSyncStatus": "pending"
 }`;
 
-const getUserExample = `GET /api/v1/user-info?userId=user_demo_001
+const getUserExample = `GET /api/v1/user-info?userId=user_demo_003
 Accept: application/json
 
 {
   "schemaVersion": "1.0",
   "user": {
-    "id": "user_demo_001",
+    "id": "user_demo_003",
     "readingProfile": {
       "lexileBand": { "min": 400, "target": 500, "max": 600 },
-      "fleschKincaidGrade": 2.1,
-      "daleChall": 4.96
+      "fleschKincaidGrade": 2.2,
+      "daleChall": 6.2,
+      "preferredCategories": ["Lit"],
+      "preferredTopics": ["folktales", "kindness"]
     },
     "updatedAt": "2026-08-28T22:00:00.000Z"
   }
@@ -182,24 +179,78 @@ Content-Type: application/json
 
 {
   "schemaVersion": "1.0",
-  "userId": "user_demo_001",
+  "userId": "alexandria_demo_001",
   "readingProfile": {
     "lexileBand": { "min": 450, "target": 550, "max": 650 },
     "fleschKincaidGrade": 2.5,
-    "daleChall": 5.2
+    "daleChall": 5.2,
+    "preferredCategories": ["Lit"],
+    "preferredTopics": ["animals", "friendship"]
   }
 }
 
 // 200 returns the complete updated user object.`;
 
-function CodeBlock({ label, children }: { label: string; children: string }) {
+const connectAndGetExample = `export RTP_BASE_URL="https://read-to-play-alex.vercel.app"
+export RTP_TRIAL_TOKEN="<ask-the-data-team>"
+export RTP_COOKIE_JAR="$(mktemp)"
+
+# 1. Exchange the real private token for an 8-hour cookie.
+curl --fail-with-body -sS \\
+  -c "$RTP_COOKIE_JAR" \\
+  -H "content-type: application/json" \\
+  --data "{\\"token\\":\\"$RTP_TRIAL_TOKEN\\"}" \\
+  "$RTP_BASE_URL/api/team-lab/auth"
+
+# 2. Verify Postgres + ClickHouse readiness.
+curl --fail-with-body -sS \\
+  -b "$RTP_COOKIE_JAR" \\
+  "$RTP_BASE_URL/health"
+
+# 3. Read one learner profile from managed Postgres.
+curl --fail-with-body -sS \\
+  -b "$RTP_COOKIE_JAR" \\
+  "$RTP_BASE_URL/api/v1/user-info?userId=user_demo_003"
+
+# 4. Assign one passage. This GET writes, so the key is required.
+curl --fail-with-body -sS \\
+  -b "$RTP_COOKIE_JAR" \\
+  -H "Idempotency-Key: alexandria-assignment-001" \\
+  "$RTP_BASE_URL/api/v1/passage?userId=user_demo_003"`;
+
+const currentPostExample = `# Create a namespaced test user; do not overwrite shared seeds.
+curl --fail-with-body -sS \\
+  -b "$RTP_COOKIE_JAR" \\
+  -H "content-type: application/json" \\
+  --data '{
+    "schemaVersion": "1.0",
+    "userId": "alexandria_demo_001",
+    "readingProfile": {
+      "lexileBand": { "min": 400, "target": 500, "max": 600 },
+      "fleschKincaidGrade": 2.2,
+      "daleChall": 6.2,
+      "preferredCategories": ["Lit"],
+      "preferredTopics": ["folktales", "kindness"]
+    }
+  }' \\
+  "$RTP_BASE_URL/api/v1/user-info"`;
+
+function CodeBlock({
+  label,
+  children,
+  format = 'JSON · v1.0',
+}: {
+  label: string;
+  children: string;
+  format?: string;
+}) {
   return (
     <div className="overflow-hidden rounded-2xl bg-[#0d3028] shadow-inner">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-mint-dark">
           {label}
         </span>
-        <span className="font-mono text-[10px] text-white/35">JSON · v1.0</span>
+        <span className="font-mono text-[10px] text-white/35">{format}</span>
       </div>
       <pre className="max-h-[420px] overflow-auto p-4 font-mono text-[11px] leading-5 text-white/78 sm:p-5 sm:text-xs">
         <code>{children}</code>
@@ -248,6 +299,175 @@ export default function Home() {
           </a>
         </div>
       </header>
+
+      <section className="border-b border-mint-dark/25 bg-forest text-white">
+        <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-mint px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.13em] text-forest">
+                  <span className="size-2 rounded-full bg-mint-dark" /> Live on
+                  the web now
+                </span>
+                <span className="rounded-full border border-white/15 px-3 py-1.5 text-[11px] font-bold text-white/65">
+                  HTTPS · Vercel · Managed Postgres + ClickHouse
+                </span>
+              </div>
+              <h2 className="mt-4 font-heading text-2xl font-semibold sm:text-3xl">
+                Current API access
+              </h2>
+              <a
+                href="https://read-to-play-alex.vercel.app"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block break-all font-mono text-sm font-semibold text-mint-dark underline decoration-mint-dark/35 underline-offset-4"
+              >
+                https://read-to-play-alex.vercel.app
+              </a>
+              <p className="mt-4 text-sm leading-6 text-white/68">
+                The API is publicly reachable over HTTPS but requires the
+                private team-lab access exchange. The same-origin Vercel UI,
+                Postman, curl, and server-side clients can use it today. A
+                browser app hosted on a different domain must call it through
+                its own backend proxy because the trial cookie is{' '}
+                <code className="font-mono text-xs text-white">
+                  SameSite=Strict
+                </code>
+                .
+              </p>
+              <p className="mt-3 rounded-xl border border-coral/35 bg-coral/10 px-4 py-3 text-xs font-semibold leading-5 text-white/75">
+                Access requirement: exchange the real private token at{' '}
+                <code className="font-mono text-white">
+                  POST /api/team-lab/auth
+                </code>
+                . The text{' '}
+                <code className="font-mono text-white">
+                  SHARED_OUT_OF_BAND_TOKEN
+                </code>{' '}
+                is a placeholder, not a working credential. Never put the real
+                token in browser code or GitHub.
+              </p>
+            </div>
+            <div className="grid shrink-0 gap-2 text-xs sm:min-w-[390px]">
+              {[
+                ['GET', '/api/v1/user-info?userId=…'],
+                ['POST', '/api/v1/user-info'],
+                ['GET', '/api/v1/passage?userId=…'],
+                ['POST', '/api/v1/session'],
+              ].map(([method, path]) => (
+                <div
+                  key={path}
+                  className="flex items-center gap-3 rounded-xl bg-white/[0.07] px-3 py-2.5"
+                >
+                  <span className="w-10 font-mono font-bold text-mint-dark">
+                    {method}
+                  </span>
+                  <code className="font-mono text-white/75">{path}</code>
+                  <span className="ml-auto text-mint-dark">✓</span>
+                </div>
+              ))}
+              <p className="mt-1 rounded-xl border border-coral/35 bg-coral/10 px-3 py-2.5 leading-5 text-white/65">
+                Patricio’s four simplified routes are live and connected to
+                managed Postgres. The original session-ID routes remain
+                available for the team lab.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-forest/10 bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
+          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-coral-dark">
+                Start here · Current deployed API
+              </p>
+              <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-forest sm:text-4xl">
+                Connect in three steps
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-forest/58">
+              These commands authenticate once, exercise a live GET, and show
+              the safe pattern for a profile POST. Use a namespaced test user so
+              another team’s shared fixture is not changed.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              [
+                '1',
+                'Get the private token',
+                'Ask the data team for the real trial token. The placeholder in GitHub is intentionally invalid.',
+              ],
+              [
+                '2',
+                'Exchange it once',
+                'POST the token to /api/team-lab/auth and retain the returned HttpOnly cookie for subsequent calls.',
+              ],
+              [
+                '3',
+                'Call with the cookie',
+                'Send the cookie on every GET, POST, and PUT. Re-authenticate after eight hours or any 401 response.',
+              ],
+            ].map(([step, title, copy]) => (
+              <article
+                key={step}
+                className="rounded-2xl border border-forest/10 bg-cream p-5"
+              >
+                <span className="grid size-7 place-items-center rounded-full bg-forest font-mono text-xs font-bold text-white">
+                  {step}
+                </span>
+                <h3 className="mt-4 text-sm font-extrabold text-forest">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-forest/58">{copy}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-6 grid gap-5 lg:grid-cols-2">
+            <CodeBlock
+              label="Authenticate + working GET requests"
+              format="Shell · curl"
+            >
+              {connectAndGetExample}
+            </CodeBlock>
+            <CodeBlock label="Working POST request" format="Shell · curl">
+              {currentPostExample}
+            </CodeBlock>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['204', 'Token accepted; cookie set'],
+              ['200', 'GET or assignment succeeded'],
+              ['401', 'Cookie missing, invalid, or expired'],
+              ['422', 'No approved passage matches the request'],
+            ].map(([status, meaning]) => (
+              <div
+                key={status}
+                className="flex items-center gap-3 rounded-xl bg-sand/70 px-4 py-3 text-xs text-forest/60"
+              >
+                <code className="font-mono font-bold text-forest">
+                  {status}
+                </code>
+                <span>{meaning}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-coral/20 bg-coral-soft p-5 text-sm leading-6 text-coral-dark">
+            <strong>Browser teams:</strong> do not copy the shared token into
+            frontend code. The cookie is same-origin and{' '}
+            <code className="font-mono text-xs">SameSite=Strict</code>. A UI
+            hosted on another domain must send its requests through its own
+            backend/server-side proxy, which performs this exchange and keeps
+            the cookie.
+          </div>
+        </div>
+      </section>
 
       <section id="top" className="border-b border-forest/10 bg-cream">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:py-20">
@@ -427,7 +647,7 @@ export default function Home() {
               {[
                 [
                   'Identity',
-                  'Use one hard-coded pseudonymous user for the demo. Authentication is not part of this four-interface scope.',
+                  'Ten shared synthetic profiles are seeded. Teams should create a namespaced pseudonymous ID before testing writes.',
                 ],
                 [
                   'Profile',
@@ -473,7 +693,7 @@ export default function Home() {
       >
         <div className="max-w-3xl">
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-coral-dark">
-            Proposed contract v1.0
+            Live contract v1.0
           </p>
           <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight text-forest sm:text-5xl">
             Request and response shapes
@@ -481,7 +701,7 @@ export default function Home() {
           <p className="mt-5 text-base leading-7 text-forest/60">
             Examples use{' '}
             <code className="rounded bg-sand px-1.5 py-1 font-mono text-xs">
-              user_demo_001
+              user_demo_003
             </code>
             . Clients should retain the complete document returned by the
             passage call, change only telemetry fields, and ignore additive
@@ -509,6 +729,11 @@ export default function Home() {
                   <strong>Returns:</strong> one object, never an array.
                 </li>
                 <li>
+                  <strong>Retry safety:</strong> this GET creates an assignment,
+                  so a stable <code className="font-mono text-xs">Idempotency-Key</code>{' '}
+                  header is required.
+                </li>
+                <li>
                   <strong>Demo:</strong> passage 2513 is currently the only
                   eligible enriched passage.
                 </li>
@@ -518,7 +743,7 @@ export default function Home() {
                 </li>
                 <li>
                   <strong>Privacy:</strong> use a stable pseudonymous ID, not a
-                  child’s real name.
+                  child’s real name. Answer keys and server scores are omitted.
                 </li>
               </ul>
               <CodeBlock label="Actual GET request">
@@ -541,14 +766,14 @@ export default function Home() {
               <p className="mt-3 text-sm leading-6 text-forest/60">
                 Send back the same reading document with timestamps, visits,
                 answers, and interactions filled. The service locates the
-                assigned record, creates its internal identifiers, validates the
-                immutable content, scores answers, and appends normalized
-                events.
+                assigned record, uses its retained internal identifiers,
+                reconstructs immutable content, scores answers, and appends
+                normalized events.
               </p>
               <div className="mt-6 rounded-2xl bg-mint p-5 text-sm leading-6 text-forest/70">
-                <strong>Retry rule:</strong> generate one stable idempotency key
-                for the logical submission and retry the exact serialized body.
-                A changed retry is a conflict.
+                <strong>Retry rule:</strong> replaying the same answers and
+                behavioral telemetry returns the original receipt. Changing
+                those result fields after acceptance is a conflict.
               </div>
               <div className="mt-5 space-y-3 text-sm leading-6 text-forest/62">
                 <p>
@@ -607,9 +832,9 @@ export default function Home() {
                 4. Update user info
               </h3>
               <p className="mt-3 text-sm leading-6 text-forest/60">
-                A professor or demo operator updates all three signals. The
-                server validates ranges and returns the complete updated
-                profile.
+                A professor or demo operator updates the reading band,
+                difficulty targets, categories, and topics. The server validates
+                ranges and returns the complete updated profile.
               </p>
               <div className="mt-6">
                 <CodeBlock label="Request + response behavior">
@@ -648,18 +873,17 @@ export default function Home() {
               </h2>
             </div>
             <p className="max-w-xl text-sm leading-6 text-white/55">
-              The cloud lab works today, but its endpoint shape predates the
-              meeting. A thin compatibility façade preserves the working
-              Postgres + ClickHouse implementation while giving Alexandria
-              exactly the four calls requested.
+              The live compatibility façade reuses the proven Postgres +
+              ClickHouse implementation while giving Alexandria exactly the
+              four calls requested and keeping internal UUIDs server-side.
             </p>
           </div>
 
           <div className="mt-10 overflow-hidden rounded-2xl border border-white/12">
             <div className="hidden grid-cols-[1fr_1.25fr_1.6fr] gap-4 bg-white/8 px-5 py-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/45 md:grid">
-              <span>Agreed target</span>
-              <span>Working route today</span>
-              <span>Required bridge</span>
+              <span>Live interface</span>
+              <span>Reused capability</span>
+              <span>Implemented behavior</span>
             </div>
             {[
               [
@@ -674,13 +898,13 @@ export default function Home() {
               ],
               [
                 'GET /api/v1/user-info',
-                'Not implemented',
-                'Add the users table and a read route for the three matching signals.',
+                'Managed Postgres users',
+                'Returns the complete Lexile, difficulty, category, and topic profile.',
               ],
               [
                 'POST /api/v1/user-info',
-                'Not implemented',
-                'Validate and update the same users table; return the full updated object.',
+                'Managed Postgres users',
+                'Validates and upserts a namespaced profile, then returns the complete saved object.',
               ],
             ].map(([target, current, work]) => (
               <div
@@ -702,18 +926,18 @@ export default function Home() {
             {[
               [
                 '01',
-                'Add profile storage',
-                'Create users with pseudonymous ID, Lexile min/target/max, Flesch–Kincaid, Dale–Chall, and timestamps.',
+                'Profile storage live',
+                'Managed Postgres contains ten synthetic users plus namespaced integration profiles.',
               ],
               [
                 '02',
-                'Add the façade',
-                'Implement four routes over the proven repository and scoring code; keep internal UUIDs server-side.',
+                'Facade live',
+                'All four routes reuse the proven repository and scoring code while keeping internal UUIDs server-side.',
               ],
               [
                 '03',
-                'Contract tests',
-                'Freeze request/response fixtures, idempotent replay behavior, partial abandonment, and error cases.',
+                'Contract verified',
+                'Tests cover auth, profile reads and writes, assignment keys, hidden answer keys, replay, and partial abandonment.',
               ],
             ].map(([step, title, copy]) => (
               <article key={step} className="rounded-2xl bg-white/[0.065] p-5">

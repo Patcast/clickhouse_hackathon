@@ -4,7 +4,10 @@ import type {
   ResultReceipt,
   ResultSubmission,
   SelectPassageRequest,
+  SessionFacadeSubmission,
   SessionDocument,
+  UserInfoEntity,
+  UserInfoUpsertRequest,
 } from "./contract.js";
 import {
   IdempotencyConflictError,
@@ -18,7 +21,8 @@ import {
   type SelectionOutcome,
 } from "./repository.js";
 import { resultFingerprint, scoreSubmission } from "./scoring.js";
-import { buildSessionDocument } from "./session.js";
+import { buildSessionDocument, hydrateFacadeSubmission } from "./session.js";
+import { loadSyntheticUsers } from "./synthetic-users.js";
 import { sha256, stableStringify } from "./utils.js";
 
 interface StoredSession {
@@ -34,8 +38,16 @@ export class MemoryPassageRepository implements PassageRepository {
   readonly mode = "memory";
   private readonly sessions = new Map<string, StoredSession>();
   private readonly idempotencyIndex = new Map<string, string>();
+  private readonly users = new Map<string, UserInfoEntity>();
 
-  constructor(private readonly passages: EnrichedPassage[]) {}
+  constructor(
+    private readonly passages: EnrichedPassage[],
+    users: UserInfoEntity[] = loadSyntheticUsers(),
+  ) {
+    for (const user of users) {
+      this.users.set(user.id, structuredClone(user));
+    }
+  }
 
   async selectAndAssign(
     request: SelectPassageRequest,
@@ -106,11 +118,25 @@ export class MemoryPassageRepository implements PassageRepository {
     }
 
     const sessionId = randomUUID();
+    const lastAssignedMs = [...this.sessions.values()]
+      .filter(
+        (session) =>
+          session.childId === request.childId &&
+          session.document.passage.id === selected.passage.id,
+      )
+      .reduce(
+        (latest, session) =>
+          Math.max(latest, Date.parse(session.document.assignedAt)),
+        0,
+      );
+    const assignedAt = new Date(
+      Math.max(Date.now(), lastAssignedMs + 1),
+    ).toISOString();
     const document = buildSessionDocument(
       selected,
       request,
       sessionId,
-      new Date().toISOString(),
+      assignedAt,
     );
     this.sessions.set(sessionId, {
       document,
@@ -159,6 +185,40 @@ export class MemoryPassageRepository implements PassageRepository {
     session.submissionHash = submissionHash;
     session.receipt = receipt;
     return { receipt, replayed: false };
+  }
+
+  async getUserInfo(userId: string): Promise<UserInfoEntity | null> {
+    const user = this.users.get(userId);
+    return user ? structuredClone(user) : null;
+  }
+
+  async upsertUserInfo(
+    request: UserInfoUpsertRequest,
+  ): Promise<UserInfoEntity> {
+    const user: UserInfoEntity = {
+      id: request.userId,
+      readingProfile: structuredClone(request.readingProfile),
+      updatedAt: new Date().toISOString(),
+    };
+    this.users.set(user.id, structuredClone(user));
+    return user;
+  }
+
+  async submitUserResult(
+    submission: SessionFacadeSubmission,
+  ): Promise<ResultOutcome> {
+    const matching = [...this.sessions.entries()].filter(([, session]) =>
+      session.document.childId === submission.userId &&
+      Date.parse(session.document.assignedAt) ===
+        Date.parse(submission.assignedAt) &&
+      session.document.passage.id === submission.passage.id
+    );
+    if (matching.length !== 1) {
+      throw new SessionNotFoundError("Reading assignment not found");
+    }
+    const [sessionId, session] = matching[0]!;
+    const normalized = hydrateFacadeSubmission(session.document, submission);
+    return this.submitResult(sessionId, normalized);
   }
 
   async healthCheck(): Promise<OperationalStoreHealth> {

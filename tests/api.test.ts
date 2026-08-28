@@ -5,9 +5,12 @@ import { createApp } from "../src/create-app.js";
 import { loadSeedPassage } from "../src/content.js";
 import {
   resultSubmissionSchema,
+  sessionFacadeSubmissionSchema,
+  type PassageFacadeDocument,
   type SessionDocument,
 } from "../src/contract.js";
 import { MemoryPassageRepository } from "../src/memory-repository.js";
+import { createRuntime } from "../src/runtime.js";
 import { scoreSubmission } from "../src/scoring.js";
 
 let app: FastifyInstance;
@@ -92,6 +95,12 @@ test("protects remote team-lab APIs with a fragment-exchanged cookie", async () 
     });
     assert.equal(unauthorized.statusCode, 401);
 
+    const unauthorizedProfile = await protectedApp.inject({
+      method: "GET",
+      url: "/api/v1/user-info?userId=user_demo_003",
+    });
+    assert.equal(unauthorizedProfile.statusCode, 401);
+
     const rejected = await protectedApp.inject({
       method: "POST",
       url: "/api/team-lab/auth",
@@ -115,9 +124,189 @@ test("protects remote team-lab APIs with a fragment-exchanged cookie", async () 
       headers: { cookie: cookie.split(";", 1)[0]! },
     });
     assert.equal(health.statusCode, 200);
+
+    const profile = await protectedApp.inject({
+      method: "GET",
+      url: "/api/v1/user-info?userId=user_demo_003",
+      headers: { cookie: cookie.split(";", 1)[0]! },
+    });
+    assert.equal(profile.statusCode, 200);
   } finally {
     await protectedApp.close();
   }
+});
+
+test("fails closed when the production API access secret is absent", () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousToken = process.env.TEAM_LAB_ACCESS_TOKEN;
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.TEAM_LAB_ACCESS_TOKEN;
+    assert.throws(
+      () => createRuntime(),
+      /TEAM_LAB_ACCESS_TOKEN is required for the production API/,
+    );
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+    if (previousToken === undefined) delete process.env.TEAM_LAB_ACCESS_TOKEN;
+    else process.env.TEAM_LAB_ACCESS_TOKEN = previousToken;
+  }
+});
+
+test("reads and updates synthetic user profiles", async () => {
+  const initial = await app.inject({
+    method: "GET",
+    url: "/api/v1/user-info?userId=user_demo_003",
+  });
+  assert.equal(initial.statusCode, 200);
+  assert.deepEqual(initial.json().user.readingProfile.lexileBand, {
+    min: 400,
+    target: 500,
+    max: 600,
+  });
+  assert.equal(initial.json().user.readingProfile.fleschKincaidGrade, 2.2);
+
+  const updated = await app.inject({
+    method: "POST",
+    url: "/api/v1/user-info",
+    payload: {
+      schemaVersion: "1.0",
+      userId: "user_demo_003",
+      readingProfile: {
+        lexileBand: { min: 450, target: 550, max: 650 },
+        fleschKincaidGrade: 2.5,
+        daleChall: 5.9,
+        preferredCategories: ["Lit"],
+        preferredTopics: ["animals"],
+      },
+    },
+  });
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.json().user.readingProfile.lexileBand.target, 550);
+
+  const missing = await app.inject({
+    method: "GET",
+    url: "/api/v1/user-info?userId=not-a-user",
+  });
+  assert.equal(missing.statusCode, 404);
+  assert.equal(missing.json().error.code, "USER_NOT_FOUND");
+});
+
+async function getFacadePassage(
+  key = "profile-assignment-001",
+): Promise<PassageFacadeDocument> {
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/v1/passage?userId=user_demo_003",
+    headers: { "idempotency-key": key },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["x-idempotent-replay"], "false");
+  return response.json<PassageFacadeDocument>();
+}
+
+test("exposes the profile passage and session compatibility routes", async () => {
+  const document = await getFacadePassage();
+  const answerKey = await loadSeedPassage();
+  const comprehensionAnswers = new Map(
+    answerKey.comprehensionQuestions.map((question) => [
+      question.questionId,
+      question.correctIndex,
+    ]),
+  );
+  const vocabularyAnswers = new Map(
+    answerKey.vocabQuestions.map((question) => [
+      question.questionId,
+      question.correctIndex,
+    ]),
+  );
+  assert.equal(document.userId, "user_demo_003");
+  assert.equal(document.passage.id, 2513);
+  assert.equal("sessionId" in document, false);
+  assert.equal("childId" in document, false);
+  assert.equal(
+    document.comprehensionQuestions.some(
+      (question) => "correctIndex" in question,
+    ),
+    false,
+  );
+  assert.equal(
+    document.vocabQuestions.some((question) => "correctIndex" in question),
+    false,
+  );
+
+  const start = new Date(Date.parse(document.assignedAt) + 1_000).toISOString();
+  const finish = new Date(Date.parse(start) + 300_000).toISOString();
+  const submission = sessionFacadeSubmissionSchema.parse({
+    ...document,
+    assignedAt: document.assignedAt.replace(/Z$/u, "+00:00"),
+    sessionStatus: "completed",
+    sessionStartedAt: start,
+    sessionFinishedAt: finish,
+    chunks: document.chunks.map((chunk, index) => ({
+      ...chunk,
+      readingTime: {
+        startedAt: start,
+        finishedAt: finish,
+        durationMs: 20_000 + index * 1_000,
+      },
+    })),
+    comprehensionQuestions: document.comprehensionQuestions.map(
+      (question) => ({
+        ...question,
+        answer: comprehensionAnswers.get(question.questionId),
+        timeSpentMs: 5_000,
+      }),
+    ),
+    vocabQuestions: document.vocabQuestions.map((question) => ({
+      ...question,
+      answer: vocabularyAnswers.get(question.questionId),
+      timeSpentMs: 4_000,
+    })),
+  });
+
+  const accepted = await app.inject({
+    method: "POST",
+    url: "/api/v1/session",
+    payload: submission,
+  });
+  assert.equal(accepted.statusCode, 201);
+  assert.equal(accepted.json().status, "accepted");
+  assert.equal(accepted.json().summary.comprehension.percent, 100);
+  assert.equal("sessionId" in accepted.json(), false);
+  assert.equal("resultId" in accepted.json(), false);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: "/api/v1/session",
+    payload: submission,
+  });
+  assert.equal(replay.statusCode, 200);
+  assert.deepEqual(replay.json(), accepted.json());
+});
+
+test("requires stable assignment keys and creates distinct facade assignments", async () => {
+  const missingKey = await app.inject({
+    method: "GET",
+    url: "/api/v1/passage?userId=user_demo_003",
+  });
+  assert.equal(missingKey.statusCode, 400);
+  assert.equal(missingKey.json().error.code, "IDEMPOTENCY_KEY_REQUIRED");
+
+  const first = await getFacadePassage("profile-assignment-distinct-1");
+  const second = await getFacadePassage("profile-assignment-distinct-2");
+  assert.notEqual(first.assignedAt, second.assignedAt);
+});
+
+test("returns no eligible passage for a synthetic profile outside the approved pool", async () => {
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/v1/passage?userId=user_demo_010",
+    headers: { "idempotency-key": "out-of-range-profile-001" },
+  });
+  assert.equal(response.statusCode, 422);
+  assert.equal(response.json().error.code, "NO_ELIGIBLE_PASSAGE");
 });
 
 async function selectPassage(

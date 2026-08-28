@@ -35,9 +35,9 @@ export function createRuntime(instance?: FastifyInstance): AppRuntime {
         ["127.0.0.1", "localhost", "::1"].includes(host)
       : configuredTeamLab === "true";
   const teamLabAccessToken = process.env.TEAM_LAB_ACCESS_TOKEN;
-  if (process.env.NODE_ENV === "production" && serveTeamLab && !teamLabAccessToken) {
+  if (process.env.NODE_ENV === "production" && !teamLabAccessToken) {
     throw new Error(
-      "TEAM_LAB_ACCESS_TOKEN is required when serving the team lab in production",
+      "TEAM_LAB_ACCESS_TOKEN is required for the production API",
     );
   }
 

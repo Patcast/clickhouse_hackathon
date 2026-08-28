@@ -1,0 +1,10 @@
+.env
+.secrets
+.git
+node_modules
+CLEAR_corpus_final.xlsx
+compose.yaml
+db
+docs
+scripts
+tests

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A local end-to-end test lab for the Read to Play passage and analytics API."
+    />
+    <title>Read to Play — Team Lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to test controls</a>
+
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="Read to Play team lab home">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span>
+          <strong>Read to Play</strong>
+          <small>Team lab</small>
+        </span>
+      </a>
+      <div class="header-status">
+        <span class="status-pill is-loading" id="headerStatus">
+          <span class="status-dot" aria-hidden="true"></span>
+          Checking API
+        </span>
+        <span class="session-clock" id="sessionClock" hidden>00:00</span>
+        <button class="button button-quiet button-small" id="pauseButton" type="button" hidden>
+          Pause session
+        </button>
+      </div>
+    </header>
+
+    <main id="main" class="page-shell">
+      <section class="intro" aria-labelledby="pageTitle">
+        <div>
+          <p class="eyebrow">End-to-end playground</p>
+          <h1 id="pageTitle">Try the whole reading loop.</h1>
+          <p>
+            Pick a child profile, request one matched passage, capture reading behavior,
+            submit the result, and watch for ClickHouse progress — all from one screen.
+          </p>
+        </div>
+        <div class="flow-key" aria-label="Test flow">
+          <span><b>1</b> Match</span>
+          <i aria-hidden="true"></i>
+          <span><b>2</b> Read</span>
+          <i aria-hidden="true"></i>
+          <span><b>3</b> Answer</span>
+          <i aria-hidden="true"></i>
+          <span><b>4</b> Analyze</span>
+        </div>
+      </section>
+
+      <section class="setup-grid" aria-label="Assignment setup and system status">
+        <form class="panel setup-panel" id="selectionForm">
+          <div class="panel-heading">
+            <div>
+              <p class="step-label">Step 1</p>
+              <h2>Create an assignment</h2>
+            </div>
+            <button class="text-button" id="resetDefaultsButton" type="button">Reset defaults</button>
+          </div>
+
+          <fieldset class="persona-picker">
+            <legend>Child persona</legend>
+            <label class="persona-option">
+              <input type="radio" name="persona" value="maya" checked />
+              <span class="avatar avatar-coral" aria-hidden="true">M</span>
+              <span><strong>Maya</strong><small>Story explorer · 500L</small></span>
+            </label>
+            <label class="persona-option">
+              <input type="radio" name="persona" value="sam" />
+              <span class="avatar avatar-mint" aria-hidden="true">S</span>
+              <span><strong>Sam</strong><small>Curious learner · 520L</small></span>
+            </label>
+            <label class="persona-option">
+              <input type="radio" name="persona" value="custom" />
+              <span class="avatar avatar-sun" aria-hidden="true">+</span>
+              <span><strong>Custom</strong><small>Edit every value</small></span>
+            </label>
+          </fieldset>
+
+          <div class="form-grid form-grid-three">
+            <label class="field field-wide">
+              <span>Child ID</span>
+              <input id="childId" name="childId" value="child_maya" maxlength="128" required />
+            </label>
+            <label class="field">
+              <span>Minimum</span>
+              <div class="suffix-input"><input id="lexileMin" type="number" min="0" max="3000" value="400" required /><i>L</i></div>
+            </label>
+            <label class="field">
+              <span>Target</span>
+              <div class="suffix-input"><input id="lexileTarget" type="number" min="0" max="3000" value="500" required /><i>L</i></div>
+            </label>
+            <label class="field">
+              <span>Maximum</span>
+              <div class="suffix-input"><input id="lexileMax" type="number" min="0" max="3000" value="600" required /><i>L</i></div>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <fieldset class="field compact-fieldset">
+              <legend>Category preference</legend>
+              <div class="segmented-control">
+                <label><input type="checkbox" name="category" value="Lit" checked /><span>Literature</span></label>
+                <label><input type="checkbox" name="category" value="Info" /><span>Informational</span></label>
+              </div>
+            </fieldset>
+            <label class="field">
+              <span>Topic signals <small>comma separated</small></span>
+              <input id="topics" value="animals, folktales" placeholder="space, animals" />
+            </label>
+          </div>
+
+          <details class="advanced-controls">
+            <summary>Request controls</summary>
+            <div class="form-grid advanced-grid">
+              <label class="field">
+                <span>Idempotency key</span>
+                <div class="inline-control">
+                  <input id="idempotencyKey" required />
+                  <button class="icon-button" id="refreshKeyButton" type="button" aria-label="Generate a new idempotency key" title="Generate new key">↻</button>
+                </div>
+                <small>Reuse this exact key and request to test safe retries.</small>
+              </label>
+              <label class="field">
+                <span>Exclude passage IDs</span>
+                <input id="excludeIds" inputmode="numeric" placeholder="2513, 4102" />
+                <small>Optional, comma separated.</small>
+              </label>
+            </div>
+          </details>
+
+          <div class="selection-evidence">
+            <section class="selection-request" aria-labelledby="selectionRequestTitle">
+              <div class="selection-request-heading">
+                <div>
+                  <span class="request-method">POST</span>
+                  <code id="selectionRequestTitle">/api/v1/passages/select</code>
+                </div>
+                <span class="live-request"><i aria-hidden="true"></i>Live request</span>
+              </div>
+              <pre id="selectionRequestPreview" tabindex="0" aria-label="Current passage selection HTTP request"></pre>
+            </section>
+
+            <aside class="matching-explainer" aria-labelledby="matchingExplainerTitle">
+              <p class="explainer-kicker">Assignment logic</p>
+              <h3 id="matchingExplainerTitle">How we find one passage</h3>
+              <ol class="matching-steps">
+                <li><strong>Validate the band.</strong><span>Require whole Lexile values ordered minimum ≤ target ≤ maximum.</span></li>
+                <li><strong>Apply the hard gates.</strong><span>Require enriched content, approved rights, the requested Lexile range, and an ID that was not excluded. Enrichment plus rights approval is the current content-safety and licensing gate.</span></li>
+                <li><strong>Rank the fit.</strong><span>Prefer unseen-for-this-child, then category match, topic match count, target-Lexile distance, oldest assignment, and passage ID.</span></li>
+                <li><strong>Assign one atomically.</strong><span>Persist one assignment so a safe retry returns the same result.</span></li>
+              </ol>
+              <p class="mvp-corpus-note"><span>MVP corpus</span><strong>4,724</strong> imported CLEAR passages; only passage <code>2513</code> is currently enriched and approved for assignment.</p>
+            </aside>
+          </div>
+
+          <div class="form-actions">
+            <button class="button button-primary" id="selectButton" type="submit">
+              <span>Find one passage</span><span aria-hidden="true">→</span>
+            </button>
+            <p id="selectionHint">The exact request above is sent when you choose this button.</p>
+          </div>
+          <div class="inline-error" id="selectionError" role="alert" hidden></div>
+        </form>
+
+        <aside class="panel status-panel" aria-labelledby="statusTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="step-label">Environment</p>
+              <h2 id="statusTitle">System readiness</h2>
+            </div>
+            <button class="icon-button" id="refreshHealthButton" type="button" aria-label="Refresh system status" title="Refresh status">↻</button>
+          </div>
+          <div class="readiness-list" id="readinessList" aria-live="polite">
+            <div class="readiness-row is-loading"><span class="readiness-icon">···</span><div><strong>Backend API</strong><small>Checking /health</small></div></div>
+            <div class="readiness-row is-loading"><span class="readiness-icon">···</span><div><strong>Assignment store</strong><small>Waiting for API</small></div></div>
+            <div class="readiness-row is-loading"><span class="readiness-icon">···</span><div><strong>Progress analytics</strong><small>Waiting for API</small></div></div>
+          </div>
+          <div class="status-note" id="statusNote">
+            <strong>Local-first by design.</strong>
+            <span>The passage flow works without cloud credentials. Analytics activates when ClickHouse is connected.</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="workspace-shell" id="workspace" aria-live="polite">
+        <div class="empty-workspace" id="emptyWorkspace">
+          <div class="empty-glyph" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div>
+            <h2>Your reading session will appear here.</h2>
+            <p>Start with <strong>Find one passage</strong>. The lab will preserve the exact API document and add telemetry as your team reads.</p>
+          </div>
+        </div>
+
+        <div id="readingWorkspace" hidden>
+          <section class="passage-banner panel">
+            <div class="passage-kicker">
+              <span class="category-tag" id="passageCategory">Literature</span>
+              <span id="passageLexile">500L</span>
+              <span id="passageWordCount">200 words</span>
+            </div>
+            <div class="passage-title-row">
+              <div>
+                <p class="step-label">Step 2 · Assigned passage</p>
+                <h2 id="passageTitle">Passage title</h2>
+                <p id="passageByline"></p>
+              </div>
+              <div class="assignment-id">
+                <small>Session</small>
+                <button id="copySessionButton" class="copy-id" type="button" title="Copy session ID">—</button>
+              </div>
+            </div>
+            <div class="match-reason" id="matchReason"></div>
+            <div class="session-launch" id="sessionLaunch">
+              <div>
+                <strong>Ready to capture the reading session?</strong>
+                <span>Timing begins when you start. Click any word to log a vocabulary lookup.</span>
+              </div>
+              <button class="button button-primary" id="startSessionButton" type="button">Begin reading</button>
+            </div>
+            <div class="progress-track" id="readingProgress" hidden>
+              <span id="readingProgressBar"></span>
+            </div>
+          </section>
+
+          <div class="reading-layout">
+            <article class="reading-column" aria-labelledby="readingTitle">
+              <div class="section-heading sticky-heading">
+                <div>
+                  <p class="step-label">Reading activity</p>
+                  <h2 id="readingTitle">Passage chunks</h2>
+                </div>
+                <div class="section-tools">
+                  <span id="chunkCompletion">0 of 0 read</span>
+                  <button class="text-button" id="fillDemoButton" type="button">Fill valid test run</button>
+                </div>
+              </div>
+              <div class="callout callout-info" id="readingGuide">
+                <span aria-hidden="true">i</span>
+                <p>Open each chunk to capture active reading time. Reopen a finished chunk to record a reread visit.</p>
+              </div>
+              <div class="chunk-list" id="chunkList"></div>
+            </article>
+
+            <aside class="live-telemetry panel" aria-labelledby="telemetryTitle">
+              <div class="panel-heading">
+                <div>
+                  <p class="step-label">Live telemetry</p>
+                  <h2 id="telemetryTitle">What we’re capturing</h2>
+                </div>
+                <span class="pulse-label" id="captureState"><i></i> Waiting</span>
+              </div>
+              <dl class="metric-grid">
+                <div><dt>Active reading</dt><dd id="activeReadingMetric">0s</dd></div>
+                <div><dt>Chunk visits</dt><dd id="visitMetric">0</dd></div>
+                <div><dt>Word lookups</dt><dd id="lookupMetric">0</dd></div>
+                <div><dt>Rereads</dt><dd id="rereadMetric">0</dd></div>
+              </dl>
+              <div class="lookup-card" id="lookupCard">
+                <small>Word lookup</small>
+                <strong id="lookupWord">Tap a word</strong>
+                <p id="lookupDefinition">Try the inline word buttons while a reading session is active.</p>
+              </div>
+              <div class="event-mini-list" id="eventMiniList">
+                <p>No interactions yet.</p>
+              </div>
+            </aside>
+          </div>
+
+          <section class="quiz-section panel" aria-labelledby="quizTitle">
+            <div class="section-heading">
+              <div>
+                <p class="step-label">Step 3 · Check understanding</p>
+                <h2 id="quizTitle">Questions</h2>
+              </div>
+              <span class="completion-chip" id="questionCompletion">0 of 0 answered</span>
+            </div>
+            <p class="section-intro">Each question has its own response timer. Start when the reader is ready, then choose one answer.</p>
+            <div class="quiz-columns">
+              <section aria-labelledby="comprehensionTitle">
+                <h3 id="comprehensionTitle"><span>C</span> Comprehension</h3>
+                <div class="question-list" id="comprehensionQuestions"></div>
+              </section>
+              <section aria-labelledby="vocabularyTitle">
+                <h3 id="vocabularyTitle"><span>V</span> Vocabulary</h3>
+                <div class="question-list" id="vocabQuestions"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="submit-panel panel" aria-labelledby="submitTitle">
+            <div>
+              <p class="step-label">Step 4 · Send the result</p>
+              <h2 id="submitTitle">Finish this test session</h2>
+              <p id="submissionReadiness">Read every chunk and answer every question to submit a completed session.</p>
+            </div>
+            <div class="submit-actions">
+              <button class="button button-danger-quiet" id="abandonButton" type="button">Abandon session</button>
+              <button class="button button-primary" id="completeButton" type="button">Complete &amp; send result</button>
+            </div>
+            <div class="inline-error submit-error" id="submitError" role="alert" hidden></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="results-grid" id="resultsArea" hidden>
+        <article class="panel receipt-panel" aria-labelledby="receiptTitle">
+          <div class="success-orbit" aria-hidden="true">✓</div>
+          <p class="step-label">Result accepted</p>
+          <h2 id="receiptTitle">The reading event stream is on its way.</h2>
+          <p id="receiptMessage">The API accepted this session and marked analytics sync as pending.</p>
+          <div class="score-grid" id="scoreGrid"></div>
+          <dl class="receipt-details" id="receiptDetails"></dl>
+          <details class="result-diagnostics" id="resultDiagnostics">
+            <summary>Result API diagnostics</summary>
+            <p>Exercise the idempotency and validation guarantees with the exact accepted document.</p>
+            <div class="diagnostic-actions">
+              <button class="button button-quiet button-small" type="button" data-diagnostic="exact">Exact retry <span>→ 200</span></button>
+              <button class="button button-quiet button-small" type="button" data-diagnostic="mutated">Changed retry <span>→ 409</span></button>
+              <button class="button button-quiet button-small" type="button" data-diagnostic="wrong-path">Wrong path <span>→ 400</span></button>
+            </div>
+            <div class="diagnostic-log" id="diagnosticLog" aria-live="polite">No diagnostics run yet.</div>
+          </details>
+          <button class="button button-secondary" id="newSessionButton" type="button">Test another assignment</button>
+        </article>
+
+        <article class="panel analytics-panel" aria-labelledby="analyticsTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="step-label">ClickHouse</p>
+              <h2 id="analyticsTitle">Child progress</h2>
+            </div>
+            <button class="button button-quiet button-small" id="refreshProgressButton" type="button">Refresh</button>
+          </div>
+          <div class="sync-status is-idle" id="syncStatus" role="status" aria-live="polite">
+            <span class="sync-icon" aria-hidden="true">···</span>
+            <div><strong>Waiting for a result</strong><small>A pre-submit baseline will separate this run from older child totals.</small></div>
+          </div>
+          <div id="analyticsContent" class="analytics-content">
+            <div class="analytics-wait"><span></span><p>Waiting for the result to reach ClickHouse.</p></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel inspector" aria-labelledby="inspectorTitle">
+        <div class="panel-heading inspector-heading">
+          <div>
+            <p class="step-label">Developer view</p>
+            <h2 id="inspectorTitle">Request &amp; interaction inspector</h2>
+          </div>
+          <div class="inspector-tabs" role="tablist" aria-label="Inspector views">
+            <button role="tab" aria-selected="true" aria-controls="apiPanel" id="apiTab" data-tab="api">API exchange</button>
+            <button role="tab" aria-selected="false" aria-controls="eventsPanel" id="eventsTab" data-tab="events">Client interactions <span id="eventCountBadge">0</span></button>
+            <button role="tab" aria-selected="false" aria-controls="payloadPanel" id="payloadTab" data-tab="payload">Result payload</button>
+          </div>
+        </div>
+
+        <div class="inspector-panel" id="apiPanel" role="tabpanel" aria-labelledby="apiTab">
+          <div class="exchange-toolbar">
+            <label>Exchange
+              <select id="exchangeSelect"><option>No API calls yet</option></select>
+            </label>
+            <span id="exchangeStatus"></span>
+          </div>
+          <div class="code-grid">
+            <div><div class="code-label"><span>Request</span><button type="button" data-copy="request">Copy</button></div><pre id="requestCode">Select a passage to inspect the raw request.</pre></div>
+            <div><div class="code-label"><span>Response</span><button type="button" data-copy="response">Copy</button></div><pre id="responseCode">The raw response will appear here.</pre></div>
+          </div>
+        </div>
+
+        <div class="inspector-panel" id="eventsPanel" role="tabpanel" aria-labelledby="eventsTab" hidden>
+          <div class="event-table-wrap">
+            <table class="event-table">
+              <thead><tr><th>Time</th><th>Event</th><th>Chunk</th><th>Detail</th></tr></thead>
+              <tbody id="eventTableBody"><tr><td colspan="4">No client interactions captured yet.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="inspector-panel" id="payloadPanel" role="tabpanel" aria-labelledby="payloadTab" hidden>
+          <div class="code-label"><span>Exact document prepared for PUT</span><button type="button" data-copy="payload">Copy</button></div>
+          <pre id="payloadCode">Complete or abandon a session to inspect the submitted document.</pre>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

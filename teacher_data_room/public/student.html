@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Profile — Teacher Data Room</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1 id="name">Student</h1>
+    <a href="index.html">← Back to class view</a>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Fluency — words per minute over time</h2>
+      <canvas id="wpmChart"></canvas>
+    </div>
+    <div class="card">
+      <h2>Accuracy by session — comprehension vs vocabulary</h2>
+      <canvas id="accChart"></canvas>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Speed vs accuracy per question</h2>
+      <canvas id="scatterChart"></canvas>
+      <p class="muted" style="margin-top:8px">Bottom-left cluster (fast + wrong) = guessing. Right side (slow) = genuinely stuck.</p>
+    </div>
+    <div class="card">
+      <h2>Vocabulary gaps — words to review</h2>
+      <div id="vocabGaps"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sessions</h2>
+    <table id="sessionsTable">
+      <thead><tr><th>Date</th><th>Passage</th><th>Lexile</th><th>WPM</th><th>Comprehension</th><th>Vocabulary</th><th>Reading time</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+<script>
+const pillClass = (pct) => pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'bad';
+
+function profileLabel(avgWpm, accPct, avgTimeMs) {
+  if (accPct < 55 && avgTimeMs < 8000) return { label: '🎲 Possible guesser', note: 'fast answers, low accuracy — encourage slowing down' };
+  if (accPct >= 80 && avgWpm < 80) return { label: '🐢 Careful & accurate', note: 'strong understanding, build fluency with easier passages' };
+  if (accPct < 55) return { label: '🆘 Needs support', note: 'low accuracy — consider dropping a lexile band' };
+  if (accPct >= 85 && avgWpm >= 120) return { label: '🚀 Ready to level up', note: 'consistently strong — try the next lexile band' };
+  return { label: '📖 On track', note: 'steady progress at current level' };
+}
+
+async function load() {
+  const id = new URLSearchParams(location.search).get('id');
+  const res = await fetch(`/api/student/${id}`);
+  const { info, sessions, vocabGaps, timing } = await res.json();
+
+  document.getElementById('name').innerHTML =
+    `${info?.name || 'Student ' + id} <span class="sub">${info ? info.class_id + ' · grade ' + info.grade : ''}</span>`;
+  document.title = `${info?.name || 'Student'} — Teacher Data Room`;
+
+  const avgWpm = sessions.reduce((s, r) => s + r.wpm, 0) / sessions.length;
+  const totCorrect = sessions.reduce((s, r) => s + r.comp_correct + r.vocab_correct, 0);
+  const totQ = sessions.reduce((s, r) => s + r.comp_total + r.vocab_total, 0);
+  const accPct = 100 * totCorrect / totQ;
+  const avgTime = timing.reduce((s, t) => s + t.time_spent_ms, 0) / timing.length;
+  const prof = profileLabel(avgWpm, accPct, avgTime);
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="v">${sessions.length}</div><div class="l">Sessions</div></div>
+    <div class="stat"><div class="v">${avgWpm.toFixed(0)}</div><div class="l">Avg WPM</div></div>
+    <div class="stat"><div class="v">${accPct.toFixed(0)}%</div><div class="l">Overall accuracy</div></div>
+    <div class="stat"><div class="v">${(avgTime / 1000).toFixed(0)}s</div><div class="l">Avg time / question</div></div>
+    <div class="stat" style="grid-column: span 2"><div class="v" style="font-size:18px">${prof.label}</div><div class="l">${prof.note}</div></div>`;
+
+  const labels = sessions.map((r) => r.day);
+
+  new Chart(document.getElementById('wpmChart'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'WPM', data: sessions.map((r) => r.wpm), borderColor: '#1a9e6c', backgroundColor: '#1a9e6c22', fill: true, tension: 0.3 }] },
+    options: { scales: { y: { beginAtZero: true } } },
+  });
+
+  new Chart(document.getElementById('accChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Comprehension %', data: sessions.map((r) => 100 * r.comp_correct / r.comp_total), borderColor: '#2b5cff', tension: 0.3 },
+        { label: 'Vocabulary %', data: sessions.map((r) => 100 * r.vocab_correct / r.vocab_total), borderColor: '#d99000', tension: 0.3 },
+      ],
+    },
+    options: { scales: { y: { min: 0, max: 100 } } },
+  });
+
+  new Chart(document.getElementById('scatterChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Correct', data: timing.filter((t) => t.is_correct).map((t) => ({ x: t.time_spent_ms / 1000, y: 1 + (Math.random() - 0.5) * 0.4 })), backgroundColor: '#1a9e6c' },
+        { label: 'Wrong', data: timing.filter((t) => !t.is_correct).map((t) => ({ x: t.time_spent_ms / 1000, y: 0 + (Math.random() - 0.5) * 0.4 })), backgroundColor: '#d43d51' },
+      ],
+    },
+    options: {
+      scales: {
+        x: { title: { display: true, text: 'seconds spent on question' } },
+        y: { min: -0.5, max: 1.5, ticks: { callback: (v) => v === 1 ? 'correct' : v === 0 ? 'wrong' : '' } },
+      },
+    },
+  });
+
+  document.getElementById('vocabGaps').innerHTML = vocabGaps.length
+    ? vocabGaps.map((v) => `<span class="chip">${v.vocab_word} ×${v.misses}</span>`).join('')
+    : '<p class="muted">No missed vocabulary words 🎉</p>';
+
+  document.querySelector('#sessionsTable tbody').innerHTML = sessions.slice().reverse().map((r) => {
+    const cp = 100 * r.comp_correct / r.comp_total, vp = 100 * r.vocab_correct / r.vocab_total;
+    return `<tr>
+      <td class="muted">${r.day}</td>
+      <td><strong>${r.passage_title}</strong></td>
+      <td>${r.lexile_band}L</td>
+      <td>${r.wpm}</td>
+      <td><span class="pill ${pillClass(cp)}">${r.comp_correct}/${r.comp_total}</span></td>
+      <td><span class="pill ${pillClass(vp)}">${r.vocab_correct}/${r.vocab_total}</span></td>
+      <td class="muted">${Math.floor(r.reading_secs / 60)}m ${r.reading_secs % 60}s</td>
+    </tr>`;
+  }).join('');
+}
+load();
+</script>
+</body>
+</html>

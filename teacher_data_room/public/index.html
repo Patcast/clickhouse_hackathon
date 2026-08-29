@@ -45,6 +45,7 @@
 
 <script>
 const pillClass = (pct) => pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'bad';
+let trendChartInstance;
 
 async function load() {
   const res = await fetch('/api/overview');
@@ -85,7 +86,8 @@ async function load() {
   }).join('');
 
   // trend chart
-  new Chart(document.getElementById('trendChart'), {
+  if (trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance = new Chart(document.getElementById('trendChart'), {
     data: {
       labels: trend.map((t) => t.day),
       datasets: [
@@ -112,6 +114,7 @@ async function load() {
   document.getElementById('asof').textContent = 'Updated ' + new Date().toLocaleString();
 }
 load();
+setInterval(load, 10000); // live-refresh as new sessions land in ClickHouse
 </script>
 </body>
 </html>

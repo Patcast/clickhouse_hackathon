@@ -277,8 +277,17 @@
     mountains: { pos: "noun",      meaning: "Very tall hills made of rock." }
   };
 
-  /* The reader. Levels start as defaults and are set by onboarding. */
-  var STUDENT = { id: "104", name: "Diego Santos", comprehensionLevel: 2, vocabLevel: 1, likes: null, streak: 5 };
+  /* The reader. Levels start as defaults and are set by onboarding.
+     classId/grade must match the analytics rows so the session lands on the
+     same student in the teacher data room. */
+  var STUDENT = { id: "104", name: "Diego Santos", classId: "class-4b", grade: 4, comprehensionLevel: 2, vocabLevel: 1, likes: null, streak: 5 };
+
+  /* Where finished sessions are posted. The analytics_engine writes them to
+     ClickHouse; the teacher data room reads the same tables. */
+  var ANALYTICS_ENDPOINT =
+    (location.protocol.indexOf("http") === 0
+      ? location.protocol + "//" + location.hostname
+      : "http://localhost") + ":3001/api/sessions";
 
   /* -------------------------------------------------------------------------
      ONBOARDING via LibreChat
@@ -368,7 +377,9 @@
     picked: null,
     activeWord: null,
     devTab: "payload",
-    ob: null
+    ob: null,
+    sync: null,
+    syncError: null
   };
 
   var app = document.getElementById("app");
@@ -786,6 +797,11 @@
         '<div class="col" style="gap:5px;">' +
           '<h1 style="font-size:clamp(26px,5.4vh,42px);color:#fff;font-weight:700;line-height:1.1;">Daily reading done!</h1>' +
           '<span style="font-size:clamp(14px,2.3vh,18px);color:#99f6e4;font-weight:600;">You finished ' + esc(S.passage.passage.title) + ", " + esc(STUDENT.name) + "</span>" +
+          '<span style="font-size:clamp(12px,1.9vh,15px);color:' + (S.sync === "error" ? "#fecaca" : "#5eead4") + ';font-weight:600;">' +
+            (S.sync === "ok" ? "Saved to your teacher's dashboard."
+              : S.sync === "error" ? "Couldn't save to the class server &mdash; " + esc(S.syncError || "is it running?")
+              : "Saving to your teacher's dashboard&hellip;") +
+          "</span>" +
         "</div>" +
       "</div>" +
 
@@ -919,6 +935,8 @@
     S.screen = "reading";
     S.chunkIndex = 0;
     S.activeWord = null;
+    S.sync = null;
+    S.syncError = null;
     S.readingStart = Date.now();
     beginChunk();
     render();
@@ -1002,8 +1020,50 @@
       vocabScore: vGot / S.passage.vocabQuestions.length,
       unlocked: true
     });
+    submitSession();
     S.screen = "done";
     render();
+  }
+
+  /* Ship the completed session to the analytics engine so the teacher data
+     room sees it. The in-memory passage document already carries the answers
+     and per-chunk reading times, so it goes out as-is plus a session block. */
+  function submitSession() {
+    S.sync = "sending";
+    S.syncError = null;
+    fetch(ANALYTICS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session: {
+          studentId: Number(STUDENT.id),
+          studentName: STUDENT.name,
+          classId: STUDENT.classId,
+          grade: STUDENT.grade,
+          startedAt: iso(S.readingStart),
+          finishedAt: new Date().toISOString(),
+          completed: true
+        },
+        passage: S.passage.passage,
+        chunks: S.passage.chunks,
+        comprehensionQuestions: S.passage.comprehensionQuestions,
+        vocabQuestions: S.passage.vocabQuestions
+      })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (body) {
+        if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
+        return body;
+      });
+    }).then(function (body) {
+      S.sync = "ok";
+      logEvent("session_saved", { sessionId: body.sessionId, wpm: body.wpm });
+      if (S.screen === "done") render();
+    }).catch(function (err) {
+      S.sync = "error";
+      S.syncError = String((err && err.message) || err);
+      logEvent("session_save_failed", { error: S.syncError });
+      if (S.screen === "done") render();
+    });
   }
 
   function tapWord(word, raw) {

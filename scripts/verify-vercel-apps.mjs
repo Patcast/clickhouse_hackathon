@@ -19,10 +19,15 @@ async function request(name, url, options = {}, expectedStatus = 200) {
 const results = [];
 
 const studentPage = await request('student page', `${urls.student}/`);
-if (!studentPage.text.includes('<title>Little Alexandria</title>')) {
-  throw new Error('student page: expected title not found');
+if (
+  !studentPage.text.includes('<title>Little Alexandria</title>')
+  || !studentPage.text.includes('class="front-door__hero"')
+  || !studentPage.text.includes('data-go="student" data-door-role')
+  || !studentPage.text.includes('data-go="professor" data-door-role')
+) {
+  throw new Error('student page: expected Little Alexandria front door not found');
 }
-results.push(['student page', 200, 'Little Alexandria']);
+results.push(['student page', 200, 'Little Alexandria front door']);
 
 const studentHealth = await request('student health', `${urls.student}/api/health`);
 const studentHealthBody = JSON.parse(studentHealth.text);

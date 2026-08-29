@@ -1,4 +1,5 @@
 <title>Little Alexandria</title>
+<link rel="preload" as="image" href="./little-alexandria-hero.png" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
 <style>
   :root {
@@ -39,6 +40,126 @@
   }
   h1, h2, h3, .display { font-family: "Fredoka", "Nunito", system-ui, sans-serif; font-weight: 600; margin: 0; }
   button { font: inherit; color: inherit; border: none; background: none; cursor: pointer; }
+
+  /* ---------- Little Alexandria front door (Steam Deck startup) ---------- */
+  #app.front-door {
+    position: relative;
+    display: block;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: #073b4c;
+    color: #fff;
+  }
+  #app.front-door + #devbtn { display: none; }
+  .front-door__hero {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .front-door__veil {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(4,47,46,.98) 0%, rgba(4,47,46,.92) 38%, rgba(4,47,46,.18) 68%, transparent 100%);
+  }
+  .front-door__panel {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: clamp(24px, 3.75vw, 48px);
+    width: min(520px, calc(100% - 48px));
+    transform: translateY(-50%);
+    padding: clamp(26px, 4.25vh, 34px);
+    border: 1px solid rgba(153,246,228,.32);
+    border-radius: 28px;
+    background: rgba(4,47,46,.78);
+    backdrop-filter: blur(15px);
+    box-shadow: 0 24px 80px rgba(0,0,0,.34);
+  }
+  .front-door__kicker {
+    color: #99f6e4;
+    font-size: clamp(13px, 2vh, 16px);
+    font-weight: 900;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+  .front-door__title {
+    margin: 8px 0 6px;
+    color: #fff;
+    font-size: clamp(40px, 5.15vw, 66px);
+    line-height: .98;
+  }
+  .front-door__subtitle {
+    margin: 0 0 clamp(18px, 3.4vh, 27px);
+    color: #ccfbf1;
+    font-size: clamp(17px, 2.5vh, 20px);
+    font-weight: 700;
+  }
+  .front-door__status {
+    min-height: 76px;
+    padding: 17px 19px;
+    border: 2px solid rgba(251,191,36,.62);
+    border-radius: 18px;
+    background: rgba(15,118,110,.55);
+    color: #fff7d6;
+    font-size: clamp(17px, 2.5vh, 20px);
+    font-weight: 900;
+    line-height: 1.35;
+  }
+  .front-door__steps {
+    display: flex;
+    gap: 10px;
+    margin: clamp(14px, 2.25vh, 18px) 0 clamp(18px, 3vh, 24px);
+  }
+  .front-door__steps span {
+    width: 42px;
+    height: 9px;
+    border-radius: 999px;
+    background: #fbbf24;
+  }
+  .front-door__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .front-door__action {
+    min-height: 58px;
+    padding: 13px 22px;
+    border-radius: 17px;
+    font-size: 18px;
+    font-weight: 900;
+    background: #fbbf24;
+    color: #422006;
+    transition: transform .1s ease, box-shadow .1s ease;
+  }
+  .front-door__action--professor { background: #ccfbf1; color: #115e59; }
+  .front-door__action:hover { transform: translateY(-2px); }
+  .front-door__action:focus-visible {
+    outline: 4px solid #fff7d6;
+    outline-offset: 4px;
+    box-shadow: 0 0 0 8px rgba(251,191,36,.38);
+  }
+  .front-door__help {
+    margin: 16px 0 0;
+    color: #99f6e4;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 860px) {
+    .front-door__panel { width: min(500px, calc(100% - 48px)); }
+  }
+  @media (max-height: 680px) {
+    .front-door__panel { padding: 22px 26px; }
+    .front-door__status { min-height: 64px; padding: 13px 16px; }
+    .front-door__help { margin-top: 10px; }
+  }
 
   /* ---------- app shell: targets Steam Deck 1280x800, scales down gracefully ---------- */
   #app {
@@ -285,6 +406,7 @@
   /* Where finished sessions are posted. The analytics_engine writes them to
      ClickHouse; the teacher data room reads the same tables. */
   var ANALYTICS_ENDPOINT = location.origin + "/api/sessions";
+  var PROFESSOR_URL = "https://little-alexandria-professor.vercel.app/";
 
   /* -------------------------------------------------------------------------
      ONBOARDING via LibreChat
@@ -478,6 +600,30 @@
   /* =========================================================================
      5. SCREENS
      ========================================================================= */
+
+  function screenDoor() {
+    app.className = "front-door";
+    app.innerHTML =
+      '<img class="front-door__hero" src="./little-alexandria-hero.png" fetchpriority="high" alt="Little Alexandria reading in San Francisco Japantown">' +
+      '<div class="front-door__veil" aria-hidden="true"></div>' +
+      '<section class="front-door__panel" aria-labelledby="front-door-title">' +
+        '<div class="front-door__kicker">San Francisco Japantown</div>' +
+        '<h1 class="front-door__title" id="front-door-title">Little Alexandria</h1>' +
+        '<p class="front-door__subtitle">Read a little. Play a lot.</p>' +
+        '<div class="front-door__status" role="status">Who is using Little Alexandria? Choose a path and press A.</div>' +
+        '<div class="front-door__steps" aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
+        '<div class="front-door__actions" aria-label="Choose a Little Alexandria doorway">' +
+          '<button class="front-door__action" type="button" data-go="student" data-door-role>Student</button>' +
+          '<button class="front-door__action front-door__action--professor" type="button" data-go="professor" data-door-role>Professor</button>' +
+        '</div>' +
+        '<p class="front-door__help">Student opens the reading adventure. Professor opens the adult access gate; the team\'s shared secure link is still required.</p>' +
+      '</section>';
+
+    requestAnimationFrame(function () {
+      var first = app.querySelector("[data-door-role]");
+      if (first) first.focus({ preventScroll: true });
+    });
+  }
 
   function screenOnboarding() {
     var ob = S.ob;
@@ -847,7 +993,8 @@
   }
 
   function render() {
-    if (S.screen === "onboarding") screenOnboarding();
+    if (S.screen === "door") screenDoor();
+    else if (S.screen === "onboarding") screenOnboarding();
     else if (S.screen === "start") screenStart();
     else if (S.screen === "reading") screenReading();
     else if (S.screen === "comprehension") screenQuiz("comprehension");
@@ -1094,7 +1241,9 @@
     var go = e.target.closest("[data-go]");
     if (!go) return;
     var action = go.getAttribute("data-go");
-    if (action === "read") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+    if (action === "student") { logEvent("role_selected", { role: "student" }); startOnboarding(); }
+    else if (action === "professor") { window.location.assign(PROFESSOR_URL); }
+    else if (action === "read") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
     else if (action === "next") nextChunk();
     else if (action === "dismiss") { S.activeWord = null; render(); }
     else if (action === "advance") advance();
@@ -1104,6 +1253,19 @@
 
   document.addEventListener("keydown", function (e) {
     if (document.getElementById("dev").classList.contains("open")) return;
+    if (S.screen === "door") {
+      var roles = Array.prototype.slice.call(app.querySelectorAll("[data-door-role]"));
+      var current = roles.indexOf(document.activeElement);
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) !== -1) {
+        e.preventDefault();
+        var delta = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+        roles[(Math.max(0, current) + delta + roles.length) % roles.length].focus({ preventScroll: true });
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        (roles[current] || roles[0]).click();
+      }
+      return;
+    }
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (S.screen === "onboarding") { if (S.ob && S.ob.levels) finishOnboarding(); }
@@ -1183,7 +1345,9 @@
       EVENTS.length = 0;
       var c = document.getElementById("evcount");
       if (c) c.textContent = "0";
-      startOnboarding();
+      S.screen = "door";
+      S.ob = null;
+      render();
     });
   }
 

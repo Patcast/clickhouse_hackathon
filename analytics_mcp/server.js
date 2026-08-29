@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -28,8 +29,13 @@ function asResult(data) {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
 }
 
+const SYSTEM_PROMPT = fs.readFileSync(path.join(__dirname, 'system-prompt.md'), 'utf8');
+
 function buildServer() {
-  const server = new McpServer({ name: 'reading-analytics', version: '1.0.0' });
+  const server = new McpServer(
+    { name: 'reading-analytics', version: '1.0.0' },
+    { instructions: SYSTEM_PROMPT }
+  );
 
   server.registerTool(
     'class_overview',

@@ -2,6 +2,34 @@
 
 > 📚 **New here?** Start with [The Little Alexandria Data Story](https://claude.ai/code/artifact/14dbae04-49a1-4ccc-ad8d-9b5eded91478) — a visual walkthrough of the whole system from the data's perspective: the CLEAR corpus, the Postgres schema, the ClickPipes CDC bridge, the ClickHouse analytics, and how kids, teachers, and the LibreChat AI coach each touch the data.
 
+## Little Alexandria production demo
+
+Patricio's laptop-hosted demo has been moved from temporary ngrok URLs to three
+persistent Vercel projects:
+
+| Surface | Production URL | Access |
+|---|---|---|
+| Student reading app | <https://little-alexandria-student.vercel.app/> | Public demo; hard-coded synthetic student 104 |
+| Professor data room | <https://little-alexandria-professor.vercel.app/> | Open the private `#access_token=...` link from the data team |
+| Reading analytics MCP | `https://little-alexandria-mcp.vercel.app/mcp` | `Authorization: Bearer <PROFESSOR_MCP_TOKEN>` |
+| Four-interface data/API lab | <https://read-to-play-alex.vercel.app/> | Existing cookie-exchange flow documented below |
+
+The student app and its same-origin `POST /api/sessions` function are one Vercel
+project. Completed reads write to ClickHouse. The professor app reads those
+ClickHouse tables, and its APIs require the shared token. The MCP is a separate,
+token-protected stateless Streamable HTTP endpoint exposing the four read-only
+analytics tools. All learner names and performance data in this hackathon demo
+are synthetic fixtures.
+
+The professor/MCP token is separate from the four-interface data/API lab token
+documented below. The private local handoff file labels both the complete
+professor link and the corresponding MCP Bearer header.
+
+LibreChat remains the Dockerized chat client. It no longer needs the MCP to run
+on Patricio's laptop: point its `reading-analytics` server at the hosted MCP URL
+and send the shared token as a Bearer header. Never commit the real token or put
+it in browser source.
+
 ## Frontend handoff: four-route compatibility API
 
 > **Deployment status:** all four routes are live on the hosted trial and backed

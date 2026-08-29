@@ -1,4 +1,5 @@
 import express from 'express';
+import { timingSafeEqual } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@clickhouse/client';
@@ -15,8 +16,30 @@ const clickhouse = createClient({
 });
 
 const app = express();
+app.disable('x-powered-by');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+function hasValidAccessToken(req) {
+  const expected = process.env.TEAM_LAB_ACCESS_TOKEN;
+  const header = req.get('authorization') || '';
+  const provided = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+app.use('/api', (req, res, next) => {
+  if (!process.env.TEAM_LAB_ACCESS_TOKEN) {
+    return res.status(503).json({ error: 'Professor access is not configured' });
+  }
+  if (!hasValidAccessToken(req)) {
+    return res.status(401).set('WWW-Authenticate', 'Bearer').json({ error: 'Professor access token required' });
+  }
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 const PORT = process.env.TEACHER_DATA_ROOM_PORT || 3002;
 
@@ -35,23 +58,30 @@ const DIFFICULTY_RANGES = {
   bt_easiness_min: [-3, 2],
 };
 
-await clickhouse.command({
-  query: `
-    CREATE TABLE IF NOT EXISTS student_difficulty
-    (
-        student_id      UInt32,
-        fk_grade_max    Float32,
-        dale_chall_max  Float32,
-        bt_easiness_min Float32,
-        updated_at      DateTime64(3)
-    )
-    ENGINE = ReplacingMergeTree(updated_at)
-    ORDER BY student_id`,
-});
+let schemaPromise;
+function ensureSchema() {
+  if (!schemaPromise) {
+    schemaPromise = clickhouse.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS student_difficulty
+        (
+            student_id      UInt32,
+            fk_grade_max    Float32,
+            dale_chall_max  Float32,
+            bt_easiness_min Float32,
+            updated_at      DateTime64(3)
+        )
+        ENGINE = ReplacingMergeTree(updated_at)
+        ORDER BY student_id`,
+    });
+  }
+  return schemaPromise;
+}
 
 // ---- Class overview: one row per student + class daily trend
 app.get('/api/overview', async (_req, res) => {
   try {
+    await ensureSchema();
     const [students, trend, itemAnalysis] = await Promise.all([
       q(`
         SELECT
@@ -101,6 +131,7 @@ app.get('/api/overview', async (_req, res) => {
 app.get('/api/student/:id', async (req, res) => {
   const student_id = Number(req.params.id);
   try {
+    await ensureSchema();
     const [info, sessions, vocabGaps, timing, difficulty] = await Promise.all([
       q(`SELECT student_id, name, class_id, grade FROM students FINAL WHERE student_id = {student_id:UInt32}`, { student_id }),
       q(`
@@ -153,6 +184,7 @@ app.post('/api/student/:id/difficulty', async (req, res) => {
     row[key] = value;
   }
   try {
+    await ensureSchema();
     row.updated_at = new Date().toISOString().replace('T', ' ').replace('Z', '');
     await clickhouse.insert({ table: 'student_difficulty', values: [row], format: 'JSONEachRow' });
     res.json({ ok: true, difficulty: row });
@@ -162,6 +194,27 @@ app.post('/api/student/:id/difficulty', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`teacher_data_room listening on http://localhost:${PORT}`);
+app.get('/health', async (_req, res) => {
+  try {
+    await ensureSchema();
+    await clickhouse.query({ query: 'SELECT 1' });
+    res.json({ ok: true, clickhouse: 'connected' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err.message || err) });
+  }
 });
+
+if (!process.env.VERCEL) {
+  ensureSchema()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`teacher_data_room listening on http://localhost:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('failed to initialize teacher_data_room:', err);
+      process.exitCode = 1;
+    });
+}
+
+export default app;

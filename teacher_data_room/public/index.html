@@ -45,16 +45,39 @@
 
 <script>
 const pillClass = (pct) => pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'bad';
+const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+}[char]));
 let trendChartInstance;
 
+const hashToken = new URLSearchParams(location.hash.slice(1)).get('access_token');
+if (hashToken) {
+  sessionStorage.setItem('readToPlayProfessorToken', hashToken);
+  history.replaceState(null, '', location.pathname + location.search);
+}
+const accessToken = hashToken || sessionStorage.getItem('readToPlayProfessorToken');
+
+async function apiFetch(path, options = {}) {
+  if (!accessToken) throw new Error('Open the shared professor access link to view analytics.');
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${response.status})`);
+  }
+  return response;
+}
+
 async function load() {
-  const res = await fetch('/api/overview');
+  const res = await apiFetch('/api/overview');
   const { students, trend, hardestQuestions } = await res.json();
 
   // headline stats
-  const classComp = (students.reduce((s, r) => s + r.comp_pct, 0) / students.length).toFixed(0);
-  const classVocab = (students.reduce((s, r) => s + r.vocab_pct, 0) / students.length).toFixed(0);
-  const classWpm = (students.reduce((s, r) => s + r.avg_wpm, 0) / students.length).toFixed(0);
+  const studentCount = students.length || 1;
+  const classComp = (students.reduce((s, r) => s + r.comp_pct, 0) / studentCount).toFixed(0);
+  const classVocab = (students.reduce((s, r) => s + r.vocab_pct, 0) / studentCount).toFixed(0);
+  const classWpm = (students.reduce((s, r) => s + r.avg_wpm, 0) / studentCount).toFixed(0);
   const totalSessions = students.reduce((s, r) => s + Number(r.sessions), 0);
   document.getElementById('stats').innerHTML = `
     <div class="stat"><div class="v">${students.length}</div><div class="l">Students</div></div>
@@ -74,14 +97,14 @@ async function load() {
                       : r.band_growth >= 20 ? `<span class="up">▲ +${r.band_growth}L</span>`
                       : '<span class="muted">±' + Math.abs(r.band_growth) + 'L</span>';
     return `<tr class="clickable" onclick="location='student.html?id=${r.student_id}'">
-      <td><strong>${r.name || 'Student ' + r.student_id}</strong></td>
+      <td><strong>${esc(r.name || 'Student ' + r.student_id)}</strong></td>
       <td>${r.sessions}</td>
       <td>${r.avg_wpm}</td>
       <td><span class="pill ${pillClass(r.comp_pct)}">${r.comp_pct}%</span></td>
       <td><span class="pill ${pillClass(r.vocab_pct)}">${r.vocab_pct}%</span></td>
       <td>${growthBadge}</td>
       <td>${trendBadge}</td>
-      <td class="muted">${String(r.last_active).slice(0, 10)}</td>
+      <td class="muted">${esc(String(r.last_active).slice(0, 10))}</td>
     </tr>`;
   }).join('');
 
@@ -106,15 +129,20 @@ async function load() {
   // hardest questions
   document.querySelector('#hardTable tbody').innerHTML = hardestQuestions.map((h) => `
     <tr>
-      <td>${h.prompt}<div class="muted">passage ${h.passage_id} · ${h.question_id}</div></td>
-      <td>${h.axis}</td>
+      <td>${esc(h.prompt)}<div class="muted">passage ${h.passage_id} · ${esc(h.question_id)}</div></td>
+      <td>${esc(h.axis)}</td>
       <td><span class="pill ${pillClass(h.pct_correct)}">${h.pct_correct}%</span></td>
     </tr>`).join('');
 
   document.getElementById('asof').textContent = 'Updated ' + new Date().toLocaleString();
 }
-load();
-setInterval(load, 10000); // live-refresh as new sessions land in ClickHouse
+function showLoadError(error) {
+  document.getElementById('stats').innerHTML =
+    `<div class="card"><strong>Access required</strong><div class="muted">${esc(error.message)}</div></div>`;
+}
+
+load().catch(showLoadError);
+if (accessToken) setInterval(() => load().catch(showLoadError), 10000); // live-refresh as new sessions land in ClickHouse
 </script>
 </body>
 </html>

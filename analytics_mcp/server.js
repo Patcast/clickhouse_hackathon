@@ -1,4 +1,5 @@
 import express from 'express';
+import { timingSafeEqual } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -164,7 +165,33 @@ function buildServer() {
 }
 
 const app = express();
+app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
+
+function hasValidAccessToken(req) {
+  const expected = process.env.TEAM_LAB_ACCESS_TOKEN;
+  const header = req.get('authorization') || '';
+  const provided = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+app.use('/mcp', (req, res, next) => {
+  if (!process.env.TEAM_LAB_ACCESS_TOKEN) {
+    return res.status(503).json({ error: 'MCP access is not configured' });
+  }
+  if (!hasValidAccessToken(req)) {
+    return res.status(401).set('WWW-Authenticate', 'Bearer').json({
+      jsonrpc: '2.0',
+      error: { code: -32001, message: 'Bearer token required' },
+      id: req.body?.id ?? null,
+    });
+  }
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 
 // Stateless streamable-http: a fresh server+transport pair per request.
 app.post('/mcp', async (req, res) => {
@@ -194,6 +221,18 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`analytics_mcp (MCP streamable-http) listening on http://localhost:${PORT}/mcp`);
+app.get('/mcp', (_req, res) => {
+  res.set('Allow', 'POST').status(405).json({
+    jsonrpc: '2.0',
+    error: { code: -32000, message: 'Use POST for stateless Streamable HTTP MCP requests' },
+    id: null,
+  });
 });
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`analytics_mcp (MCP streamable-http) listening on http://localhost:${PORT}/mcp`);
+  });
+}
+
+export default app;

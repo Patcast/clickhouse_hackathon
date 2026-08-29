@@ -2,11 +2,23 @@
 
 Teacher-facing dashboard, querying **ClickHouse Cloud** directly (no other database).
 
+Production: <https://little-alexandria-professor.vercel.app/>
+
+The production APIs require `TEAM_LAB_ACCESS_TOKEN` as a Bearer token. The
+browser reads that token once from a private URL fragment, stores it only for
+the current tab, removes it from the address bar, and attaches it to API calls:
+
+```text
+https://little-alexandria-professor.vercel.app/#access_token=<PROFESSOR_MCP_TOKEN>
+```
+
+Do not commit or paste the real token into the HTML or this README.
+
 ## Run
 
 ```bash
 npm install
-npm start          # http://localhost:3002
+TEAM_LAB_ACCESS_TOKEN=local-only-token npm start  # http://localhost:3002
 ```
 
 ## Views

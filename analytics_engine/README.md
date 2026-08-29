@@ -4,6 +4,14 @@ Ingest API for reading-session data. Everything is stored in **ClickHouse Cloud*
 no Postgres anywhere. Append-only event tables (`MergeTree`) hold sessions, chunk
 reads and question answers; mutable student state uses `ReplacingMergeTree`.
 
+Production student app: <https://little-alexandria-student.vercel.app/>
+
+The Vercel deployment serves the student UI from `public/index.html` and routes
+its same-origin `POST /api/sessions` request to the Express function. To keep the
+public hackathon writer bounded, Vercel accepts only synthetic student `104`,
+class `class-4b`, and bundled passage `2513`. Local development and the seed
+script retain the full multi-student behavior.
+
 ## Run
 
 ```bash
@@ -38,9 +46,9 @@ answers/timings filled in, extended with a `session` block:
 ```jsonc
 {
   "session": {
-    "studentId": 101,            // required
+    "studentId": 104,            // required in the hosted demo
     "classId": "class-4b",       // required
-    "studentName": "Amara Diallo",
+    "studentName": "Diego Santos",
     "grade": 4,
     "startedAt": "2026-08-28T13:00:00Z",
     "finishedAt": "2026-08-28T13:09:12Z",

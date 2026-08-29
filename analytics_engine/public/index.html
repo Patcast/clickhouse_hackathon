@@ -1,3 +1,6 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Little Alexandria</title>
 <link rel="preload" as="image" href="./little-alexandria-hero.png" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
@@ -300,6 +303,11 @@
   #dev .tabs { display: flex; gap: 8px; }
   #dev .tab { padding: 8px 14px; border-radius: 10px; background: #292524; font-size: 13px; font-weight: 700; }
   #dev .tab.on { background: var(--teal); color: #fff; }
+  #eventcontract {
+    display: none; padding: 10px 12px; border: 1px solid #334155; border-radius: 10px;
+    background: #172033; color: #cbd5e1; font-size: 12px; line-height: 1.45;
+  }
+  #eventcontract strong { color: #99f6e4; }
   #dev pre {
     flex-grow: 1; overflow: auto; margin: 0; background: #0c0a09; border-radius: 12px;
     padding: 14px; font-size: 12px; line-height: 1.55; font-family: ui-monospace, Menlo, Consolas, monospace;
@@ -322,8 +330,9 @@
     </div>
     <div class="tabs">
       <button class="tab on" data-tab="payload">Filled passage JSON</button>
-      <button class="tab" data-tab="events">Event log (<span id="evcount">0</span>)</button>
+      <button class="tab" data-tab="events">Event contract (<span id="evcount">0</span>)</button>
     </div>
+    <div id="eventcontract"><strong>VERB + noun</strong> names the operation. <strong>layer</strong> distinguishes UI, domain, and real HTTP work; trace and sequence keep one run together.</div>
     <pre id="devout"></pre>
     <div class="acts">
       <button class="act" data-dev="copy">Copy to clipboard</button>
@@ -422,13 +431,13 @@
       id: "likes",
       say: "Hi Diego! I'm Alex. Let's find you a book you'll actually want to finish.",
       ask: "What do you like reading about?",
-      options: [{ label: "Animals" }, { label: "Space" }, { label: "Funny stories" }, { label: "Magic" }]
+      options: [{ id: "animals", label: "Animals" }, { id: "space", label: "Space" }, { id: "funny_stories", label: "Funny stories" }, { id: "magic", label: "Magic" }]
     },
     {
       id: "age",
       say: "Good pick — I know some great ones.",
       ask: "How old are you?",
-      options: [{ label: "7" }, { label: "8" }, { label: "9" }, { label: "10" }]
+      options: [{ id: "band_a", label: "7" }, { id: "band_b", label: "8" }, { id: "band_c", label: "9" }, { id: "band_d", label: "10" }]
     },
     {
       id: "placement",
@@ -436,16 +445,26 @@
       passage: "The little otter slipped into the cold river and swam after the silver fish.",
       ask: "What did the otter swim after?",
       axis: "comprehension",
-      options: [{ label: "A silver fish", correct: true }, { label: "A cold rock" }, { label: "A little boat" }]
+      options: [{ id: "silver_fish", label: "A silver fish", correct: true }, { id: "cold_rock", label: "A cold rock" }, { id: "little_boat", label: "A little boat" }]
     },
     {
       id: "vocab",
       say: "Nearly done — one word for you.",
       ask: "In that sentence, what does “slipped” mean?",
       axis: "vocabulary",
-      options: [{ label: "Moved quietly and smoothly", correct: true }, { label: "Fell asleep" }, { label: "Shouted loudly" }]
+      options: [{ id: "move_smoothly", label: "Moved quietly and smoothly", correct: true }, { id: "fall_asleep", label: "Fell asleep" }, { id: "shout_loudly", label: "Shouted loudly" }]
     }
   ];
+
+  /* Immutable machine IDs stay stable when question copy or ordering changes. */
+  var QUESTION_OPTION_IDS = {
+    c1: ["look_scary", "meet_invitation_rule", "follow_command", "replace_lost_horns"],
+    c2: ["animals_removed", "fell_to_earth", "sun_melted_wax", "danced_hard"],
+    c3: ["landed_on_nose", "pressed_mountain", "wax_stuck", "king_flattened"],
+    v1: ["having_horns", "very_loud", "mountain_home", "angry"],
+    v2: ["asked_politely", "gave_order", "sang", "thanked"],
+    v3: ["party", "horn_pair", "animal_nose_mouth", "wax_ball"]
+  };
 
   /* Returns the next thing Alex says. Swap the body for a LibreChat call. */
   function askAlex(stepIndex) {
@@ -460,22 +479,108 @@
   }
 
   /* =========================================================================
-     2. EVENT LOGGING
-     Everything the child does goes through logEvent(). Swap the body for a
-     POST to the events endpoint and the whole app is instrumented.
+     2. EVENT CONTRACT
+     Human-readable `VERB noun` names sit beside stable machine fields. UI and
+     domain operations never masquerade as HTTP; only a real request uses POST.
      ========================================================================= */
 
   var EVENTS = [];
+  var CONTRACT_ID_COUNTER = 0;
 
-  function logEvent(type, data) {
-    var ev = Object.assign({
-      studentId: STUDENT.id,
-      passageId: S.passage ? S.passage.passage.id : null,
-      type: type,
-      ts: Date.now()
-    }, data || {});
+  var EVENT_CONTRACTS = {
+    role_selected:             { layer: "ui",     verb: "SELECT",   noun: "role",                 phase: "completed", result: "accepted",  control: "button" },
+    onboarding_started:        { layer: "domain", verb: "START",    noun: "onboarding",           phase: "completed", result: "succeeded" },
+    onboarding_answer:         { layer: "ui",     verb: "SELECT",   noun: "onboarding_option",    phase: "completed", result: "accepted",  control: "button" },
+    profile_created:           { layer: "domain", verb: "DERIVE",   noun: "student_profile",      phase: "completed", result: "succeeded" },
+    book_opened:               { layer: "ui",     verb: "OPEN",     noun: "passage",              phase: "completed", result: "accepted",  control: "button" },
+    word_tapped:               { layer: "ui",     verb: "SELECT",   noun: "passage_word",         phase: "completed", result: "accepted",  control: "passage_word" },
+    page_read:                 { layer: "domain", verb: "COMPLETE", noun: "passage_chunk_visit",  phase: "completed", result: "succeeded" },
+    reading_complete:          { layer: "domain", verb: "COMPLETE", noun: "passage",              phase: "completed", result: "succeeded" },
+    comprehension_answer:      { layer: "ui",     verb: "SELECT",   noun: "answer_option",        phase: "completed", result: "accepted",  control: "button" },
+    vocab_answer:              { layer: "ui",     verb: "SELECT",   noun: "answer_option",        phase: "completed", result: "accepted",  control: "button" },
+    challenge_complete:        { layer: "domain", verb: "COMPLETE", noun: "reading_challenge",    phase: "completed", result: "succeeded" },
+    session_submit_requested:  { layer: "http",   verb: "POST",     noun: "reading_session",      phase: "request",   result: "pending" },
+    session_saved:             { layer: "http",   verb: "POST",     noun: "reading_session",      phase: "response",  result: "succeeded" },
+    session_save_failed:       { layer: "http",   verb: "POST",     noun: "reading_session",      phase: "response",  result: "failed" }
+  };
+
+  function makeContractId(prefix) {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return prefix + "_" + window.crypto.randomUUID();
+    }
+    CONTRACT_ID_COUNTER++;
+    return prefix + "_" + Date.now().toString(36) + "_" + CONTRACT_ID_COUNTER.toString(36);
+  }
+
+  function contractTarget(type, data) {
+    if (type === "role_selected") return { type: "role", id: String(data.role) };
+    if (type === "onboarding_started") return { type: "workflow", id: "profile_onboarding" };
+    if (type === "onboarding_answer") return { type: "onboarding_option", id: String(data.selectedOptionId) };
+    if (type === "profile_created") return { type: "student_profile", id: STUDENT.id };
+    if (type === "book_opened" || type === "reading_complete") return { type: "passage", id: String(data.passageId || S.passage.passage.id) };
+    if (type === "word_tapped") return { type: "passage_word", id: String(data.wordRef) };
+    if (type === "page_read") return { type: "passage_chunk", id: String(data.chunkId) };
+    if (type === "comprehension_answer" || type === "vocab_answer") return { type: "answer_option", id: String(data.selectedOptionId) };
+    if (type === "challenge_complete") return { type: "reading_challenge", id: S.runId };
+    if (type === "session_submit_requested" || type === "session_saved" || type === "session_save_failed") {
+      return { type: "endpoint", id: "/api/sessions" };
+    }
+    return { type: "unknown", id: type };
+  }
+
+  function logEvent(type, data, traceId) {
+    var spec = EVENT_CONTRACTS[type];
+    if (!spec) throw new Error("Unknown event contract: " + type);
+
+    var activeTraceId = traceId || S.runId;
+    if (!activeTraceId || activeTraceId !== S.runId) return null;
+
+    var payload = Object.assign({}, data || {});
+    var operationId = payload.operationId || null;
+    var inputSource = payload.inputSource || null;
+    var httpStatus = Number.isInteger(payload.httpStatus) ? payload.httpStatus : null;
+    delete payload.operationId;
+    delete payload.inputSource;
+    delete payload.httpStatus;
+    if (type === "word_tapped") delete payload.wordRef;
+    Object.keys(payload).forEach(function (key) {
+      if (payload[key] === null || payload[key] === undefined) delete payload[key];
+    });
+
+    S.eventSequence++;
+    var eventId = activeTraceId + ":" + S.eventSequence;
+    var ev = {
+      event: spec.verb + " " + spec.noun,
+      schemaVersion: "event.v1",
+      eventId: eventId,
+      traceId: activeTraceId,
+      sequence: S.eventSequence,
+      occurredAt: new Date().toISOString(),
+      actor: { type: "student", id: STUDENT.id },
+      operation: {
+        id: operationId || eventId,
+        code: spec.verb.toLowerCase() + "_" + spec.noun,
+        layer: spec.layer,
+        verb: spec.verb,
+        noun: spec.noun,
+        phase: type === "session_save_failed" && httpStatus === null ? "transport_error" : spec.phase
+      },
+      target: contractTarget(type, data || {}),
+      result: { status: spec.result },
+      context: {
+        passageId: S.passage ? S.passage.passage.id : null,
+        screen: S.screen
+      },
+      security: { classification: "pseudonymous", policy: "student_telemetry_v1" }
+    };
+
+    if (spec.control) ev.interaction = { control: spec.control, source: inputSource || "unspecified" };
+    if (spec.layer === "http") ev.http = { method: spec.verb, path: "/api/sessions" };
+    if (httpStatus !== null) ev.result.httpStatus = httpStatus;
+    if (Object.keys(payload).length) ev.data = payload;
+
     EVENTS.push(ev);
-    console.log("[event]", ev);
+    console.log("[contract-event]", ev);
     var c = document.getElementById("evcount");
     if (c) c.textContent = String(EVENTS.length);
     return ev;
@@ -498,7 +603,9 @@
     devTab: "payload",
     ob: null,
     sync: null,
-    syncError: null
+    syncError: null,
+    runId: null,
+    eventSequence: 0
   };
 
   var app = document.getElementById("app");
@@ -514,6 +621,16 @@
   }
 
   function iso(ms) { return new Date(ms).toISOString(); }
+
+  function contractOptionId(scope, option, index) {
+    var explicitId = option && typeof option === "object" ? option.id : null;
+    if (!explicitId && QUESTION_OPTION_IDS[scope]) explicitId = QUESTION_OPTION_IDS[scope][index];
+    return scope + ":" + (explicitId || "option_" + (index + 1));
+  }
+
+  function interactionSource(event) {
+    return event && event.detail > 0 ? "pointer_or_touch" : "keyboard_or_controller";
+  }
 
   var ICON = {
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
@@ -776,13 +893,13 @@
     var total = S.passage.chunks.length;
     var pct = ((S.chunkIndex + 1) / total) * 100;
 
-    var body = tokenize(chunk.text).map(function (tok) {
+    var body = tokenize(chunk.text).map(function (tok, tokenIndex) {
       if (!/[A-Za-z]/.test(tok)) return esc(tok);
       var key = tok.toLowerCase().replace(/[’']s$/, "");
       var known = Object.prototype.hasOwnProperty.call(DEFINITIONS, key);
       var active = S.activeWord === key;
       return '<span class="word' + (known ? " known" : "") + (active ? " active" : "") +
-        '" data-word="' + esc(key) + '" data-raw="' + esc(tok) + '">' + esc(tok) + "</span>";
+        '" data-word="' + esc(key) + '" data-token="' + tokenIndex + '" data-raw="' + esc(tok) + '">' + esc(tok) + "</span>";
     }).join("");
 
     var side;
@@ -1023,7 +1140,7 @@
     });
   }
 
-  function pickOnboarding(i) {
+  function pickOnboarding(i, inputSource) {
     var ob = S.ob;
     var step = ALEX_SCRIPT[ob.step];
     if (!step) return;
@@ -1032,7 +1149,8 @@
 
     ob.log.push({ who: "kid", text: opt.label });
 
-    if (step.id === "likes") ob.likes = opt.label;
+    var selectedOptionId = contractOptionId(step.id, opt, i);
+    if (step.id === "likes") { ob.likes = opt.label; ob.likesOptionId = selectedOptionId; }
     else if (step.id === "age") ob.age = Number(opt.label);
     else if (step.axis === "comprehension") ob.compCorrect = !!opt.correct;
     else if (step.axis === "vocabulary") ob.vocabCorrect = !!opt.correct;
@@ -1040,8 +1158,9 @@
     logEvent("onboarding_answer", {
       stepId: step.id,
       axis: step.axis || null,
-      answer: i,
-      correct: step.axis ? !!opt.correct : null,
+      selectedOptionId: selectedOptionId,
+      clientCorrect: step.axis ? !!opt.correct : null,
+      inputSource: inputSource,
       timeSpentMs: ms
     });
 
@@ -1060,8 +1179,7 @@
       logEvent("profile_created", {
         comprehensionLevel: ob.levels.comprehension,
         vocabLevel: ob.levels.vocab,
-        likes: ob.likes,
-        age: ob.age
+        preferenceId: ob.likesOptionId
       });
       render();
     }
@@ -1125,7 +1243,7 @@
     render();
   }
 
-  function pickAnswer(i) {
+  function pickAnswer(i, inputSource) {
     if (S.picked !== null) return;
     var list = S.screen === "comprehension" ? S.passage.comprehensionQuestions : S.passage.vocabQuestions;
     var q = list[S.qIndex];
@@ -1135,7 +1253,12 @@
     q.score = i === q.correctIndex ? 1 : 0;
     q.timeSpentMs = ms;
     logEvent(S.screen === "comprehension" ? "comprehension_answer" : "vocab_answer", {
-      questionId: q.questionId, axis: q.axis, answer: i, correct: q.score === 1, timeSpentMs: ms
+      questionId: q.questionId,
+      axis: q.axis,
+      selectedOptionId: contractOptionId(q.questionId, null, i),
+      clientCorrect: q.score === 1,
+      inputSource: inputSource,
+      timeSpentMs: ms
     });
     render();
   }
@@ -1173,8 +1296,11 @@
      room sees it. The in-memory passage document already carries the answers
      and per-chunk reading times, so it goes out as-is plus a session block. */
   function submitSession() {
+    var submissionTraceId = S.runId;
+    var operationId = makeContractId("op");
     S.sync = "sending";
     S.syncError = null;
+    logEvent("session_submit_requested", { operationId: operationId }, submissionTraceId);
     fetch(ANALYTICS_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1195,29 +1321,47 @@
       })
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (body) {
-        if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
-        return body;
+        if (!r.ok) {
+          var requestError = new Error("Session request failed");
+          requestError.httpStatus = r.status;
+          throw requestError;
+        }
+        return { body: body, httpStatus: r.status };
       });
-    }).then(function (body) {
+    }).then(function (response) {
+      if (S.runId !== submissionTraceId) return;
       S.sync = "ok";
-      logEvent("session_saved", { sessionId: body.sessionId, wpm: body.wpm });
+      logEvent("session_saved", {
+        operationId: operationId,
+        httpStatus: response.httpStatus,
+        sessionId: response.body.sessionId,
+        wpm: response.body.wpm
+      }, submissionTraceId);
       if (S.screen === "done") render();
     }).catch(function (err) {
+      if (S.runId !== submissionTraceId) return;
+      var httpStatus = Number.isInteger(err && err.httpStatus) ? err.httpStatus : null;
       S.sync = "error";
-      S.syncError = String((err && err.message) || err);
-      logEvent("session_save_failed", { error: S.syncError });
+      S.syncError = httpStatus ? "Request failed (" + httpStatus + ")" : "Network unavailable";
+      logEvent("session_save_failed", {
+        operationId: operationId,
+        httpStatus: httpStatus,
+        errorCode: httpStatus ? "HTTP_" + httpStatus : "NETWORK_ERROR",
+        retryable: httpStatus === null || httpStatus >= 500
+      }, submissionTraceId);
       if (S.screen === "done") render();
     });
   }
 
-  function tapWord(word, raw) {
+  function tapWord(word, inputSource, tokenIndex) {
     S.activeWord = S.activeWord === word ? null : word;
     if (S.activeWord) {
+      var chunkId = S.passage.chunks[S.chunkIndex].chunkId;
       logEvent("word_tapped", {
-        word: word,
-        raw: raw,
-        chunkId: S.passage.chunks[S.chunkIndex].chunkId,
-        known: Object.prototype.hasOwnProperty.call(DEFINITIONS, word),
+        wordRef: "chunk_" + chunkId + ":token_" + (Number(tokenIndex) + 1),
+        chunkId: chunkId,
+        definitionAvailable: Object.prototype.hasOwnProperty.call(DEFINITIONS, word),
+        inputSource: inputSource,
         axis: "vocabulary"
       });
     }
@@ -1229,21 +1373,22 @@
      ========================================================================= */
 
   app.addEventListener("click", function (e) {
+    var source = interactionSource(e);
     var w = e.target.closest("[data-word]");
-    if (w) { tapWord(w.getAttribute("data-word"), w.getAttribute("data-raw")); return; }
+    if (w) { tapWord(w.getAttribute("data-word"), source, w.getAttribute("data-token")); return; }
 
     var ob = e.target.closest("[data-ob]");
-    if (ob) { pickOnboarding(Number(ob.getAttribute("data-ob"))); return; }
+    if (ob) { pickOnboarding(Number(ob.getAttribute("data-ob")), source); return; }
 
     var pick = e.target.closest("[data-pick]");
-    if (pick) { pickAnswer(Number(pick.getAttribute("data-pick"))); return; }
+    if (pick) { pickAnswer(Number(pick.getAttribute("data-pick")), source); return; }
 
     var go = e.target.closest("[data-go]");
     if (!go) return;
     var action = go.getAttribute("data-go");
-    if (action === "student") { logEvent("role_selected", { role: "student" }); startOnboarding(); }
+    if (action === "student") { logEvent("role_selected", { role: "student", inputSource: source }); startOnboarding(); }
     else if (action === "professor") { window.location.assign(PROFESSOR_URL); }
-    else if (action === "read") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+    else if (action === "read") { logEvent("book_opened", { passageId: S.passage.passage.id, inputSource: source }); startReading(); }
     else if (action === "next") nextChunk();
     else if (action === "dismiss") { S.activeWord = null; render(); }
     else if (action === "advance") advance();
@@ -1269,7 +1414,7 @@
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (S.screen === "onboarding") { if (S.ob && S.ob.levels) finishOnboarding(); }
-      else if (S.screen === "start") { logEvent("book_opened", { passageId: S.passage.passage.id }); startReading(); }
+      else if (S.screen === "start") { logEvent("book_opened", { passageId: S.passage.passage.id, inputSource: "keyboard_or_controller" }); startReading(); }
       else if (S.screen === "reading") nextChunk();
       else if (S.screen === "done") reset();
       else if (S.picked !== null) advance();
@@ -1285,12 +1430,14 @@
 
   var dev = document.getElementById("dev");
   var devout = document.getElementById("devout");
+  var eventContract = document.getElementById("eventcontract");
   var saveBtn = dev.querySelector('[data-dev="save"]');
 
   function devRender() {
     devout.textContent = S.devTab === "payload"
       ? JSON.stringify(S.passage, null, 2)
       : JSON.stringify(EVENTS, null, 2);
+    eventContract.style.display = S.devTab === "events" ? "block" : "none";
     dev.querySelectorAll(".tab").forEach(function (t) {
       t.classList.toggle("on", t.getAttribute("data-tab") === S.devTab);
     });
@@ -1336,15 +1483,21 @@
      ========================================================================= */
 
   function reset() {
+    var nextTraceId = makeContractId("trace");
+    S.runId = nextTraceId;
+    S.eventSequence = 0;
+    S.sync = null;
+    S.syncError = null;
+    EVENTS = [];
+    var c = document.getElementById("evcount");
+    if (c) c.textContent = "0";
     loadPassage().then(function (data) {
+      if (S.runId !== nextTraceId) return;
       S.passage = data;
       S.chunkIndex = 0;
       S.qIndex = 0;
       S.picked = null;
       S.activeWord = null;
-      EVENTS.length = 0;
-      var c = document.getElementById("evcount");
-      if (c) c.textContent = "0";
       S.screen = "door";
       S.ob = null;
       render();

@@ -24,10 +24,13 @@ if (
   || !studentPage.text.includes('class="front-door__hero"')
   || !studentPage.text.includes('data-go="student" data-door-role')
   || !studentPage.text.includes('data-go="professor" data-door-role')
+  || !studentPage.text.includes('Event contract (')
+  || !studentPage.text.includes('schemaVersion: "event.v1"')
+  || !studentPage.text.includes('verb: "POST",     noun: "reading_session"')
 ) {
-  throw new Error('student page: expected Little Alexandria front door not found');
+  throw new Error('student page: expected Little Alexandria front door or event contract not found');
 }
-results.push(['student page', 200, 'Little Alexandria front door']);
+results.push(['student page', 200, 'front door and verb-noun event contract']);
 
 const studentHealth = await request('student health', `${urls.student}/api/health`);
 const studentHealthBody = JSON.parse(studentHealth.text);

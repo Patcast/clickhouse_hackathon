@@ -25,3 +25,24 @@ test("ships the exact Steam Deck Little Alexandria artwork", async () => {
 
   assert.equal(digest, "768deff0ea96360645b191db40a12437341448ab95042d0d2264efa26a37dc80");
 });
+
+test("uses explicit verb-noun event contracts and rejects stale session responses", async () => {
+  const html = await readFile(htmlUrl, "utf8");
+
+  assert.match(html, /schemaVersion: "event\.v1"/);
+  assert.match(html, /event: spec\.verb \+ " " \+ spec\.noun/);
+  assert.match(html, /code: spec\.verb\.toLowerCase\(\) \+ "_" \+ spec\.noun/);
+  assert.match(html, /role_selected:\s+\{ layer: "ui",\s+verb: "SELECT",\s+noun: "role"/);
+  assert.match(html, /session_submit_requested:\s+\{ layer: "http",\s+verb: "POST",\s+noun: "reading_session"/);
+  assert.match(html, /ev\.http = \{ method: spec\.verb, path: "\/api\/sessions" \}/);
+  assert.match(html, /security: \{ classification: "pseudonymous", policy: "student_telemetry_v1" \}/);
+  assert.equal((html.match(/if \(S\.runId !== submissionTraceId\) return;/g) ?? []).length, 2);
+  const resetBody = html.match(/function reset\(\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.ok(resetBody.indexOf("S.runId = nextTraceId") < resetBody.indexOf("loadPassage()"));
+  assert.ok(resetBody.indexOf("EVENTS = []") < resetBody.indexOf("loadPassage()"));
+  assert.match(html, /phase: type === "session_save_failed" && httpStatus === null \? "transport_error" : spec\.phase/);
+  assert.match(html, /wordRef: "chunk_" \+ chunkId \+ ":token_"/);
+  assert.doesNotMatch(html, /logEvent\("word_tapped", \{\s*word:/);
+  assert.match(html, /errorCode: httpStatus \? "HTTP_" \+ httpStatus : "NETWORK_ERROR"/);
+  assert.doesNotMatch(html, /logEvent\("session_save_failed", \{ error:/);
+});

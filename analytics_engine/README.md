@@ -16,6 +16,10 @@ Set the non-secret Vercel variable `STUDENT_WRITES_ENABLED=false` and redeploy
 to pause session writes during an abuse incident. The UI remains online,
 `/api/health` reports the writer state, and session POSTs return `503`.
 
+The in-app developer drawer follows the versioned
+[student event contract](../docs/student-event-contract.md): every record names
+an explicit verb, noun, execution layer, target, result, and trace.
+
 ## Run
 
 ```bash

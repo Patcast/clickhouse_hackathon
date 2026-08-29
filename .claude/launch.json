@@ -5,13 +5,19 @@
       "name": "progress-api",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "start"],
-      "port": 3000,
-      "autoPort": true
+      "port": 60487,
+      "autoPort": false
     },
     {
       "name": "analytics-engine",
       "url": "http://localhost:3001",
       "port": 3001
+    },
+    {
+      "name": "web-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8787", "--directory", "web"],
+      "port": 8787
     },
     {
       "name": "teacher-data-room",

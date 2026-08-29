@@ -282,17 +282,17 @@
 
   /* -------------------------------------------------------------------------
      ONBOARDING via LibreChat
-     Sparky's turns are scripted below so the flow runs with no network. Point
-     LIBRECHAT_ENDPOINT at the LibreChat server and askSparky() will use it —
+     Alex's turns are scripted below so the flow runs with no network. Point
+     LIBRECHAT_ENDPOINT at the LibreChat server and askAlex() will use it —
      the screen does not care where the words come from.
      ------------------------------------------------------------------------- */
 
   var LIBRECHAT_ENDPOINT = null; // e.g. "https://librechat.example.com/api/ask"
 
-  var SPARKY_SCRIPT = [
+  var ALEX_SCRIPT = [
     {
       id: "likes",
-      say: "Hi Diego! I'm Sparky. Let's find you a book you'll actually want to finish.",
+      say: "Hi Diego! I'm Alex. Let's find you a book you'll actually want to finish.",
       ask: "What do you like reading about?",
       options: [{ label: "Animals" }, { label: "Space" }, { label: "Funny stories" }, { label: "Magic" }]
     },
@@ -319,8 +319,8 @@
     }
   ];
 
-  /* Returns the next thing Sparky says. Swap the body for a LibreChat call. */
-  function askSparky(stepIndex) {
+  /* Returns the next thing Alex says. Swap the body for a LibreChat call. */
+  function askAlex(stepIndex) {
     if (LIBRECHAT_ENDPOINT) {
       return fetch(LIBRECHAT_ENDPOINT, {
         method: "POST",
@@ -328,7 +328,7 @@
         body: JSON.stringify({ studentId: STUDENT.id, step: stepIndex, profile: S.ob })
       }).then(function (r) { return r.json(); });
     }
-    return Promise.resolve(SPARKY_SCRIPT[stepIndex] || null);
+    return Promise.resolve(ALEX_SCRIPT[stepIndex] || null);
   }
 
   /* =========================================================================
@@ -401,6 +401,53 @@
     whale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/><path d="M12 4c3 0 5.5 2.2 5.5 5 0 2-1 3.2-1 4.5"/><path d="M6.5 11.5C6.5 7.9 9 5 12 4"/><circle cx="14.5" cy="8.5" r=".9" fill="currentColor" stroke="none"/></svg>'
   };
 
+  /* Alex, the little tiger. One drawing, used at every size. */
+  var ALEX =
+    '<svg viewBox="0 0 64 64" aria-hidden="true" style="width:100%;height:100%;display:block;overflow:visible;">' +
+      '<path d="M14 25 L16.5 9.5 L29 18.5 Z" fill="#d97706"/>' +
+      '<path d="M50 25 L47.5 9.5 L35 18.5 Z" fill="#d97706"/>' +
+      '<path d="M18.5 22 L19.8 14.5 L26 19.8 Z" fill="#fbbf24"/>' +
+      '<path d="M45.5 22 L44.2 14.5 L38 19.8 Z" fill="#fbbf24"/>' +
+      '<circle cx="32" cy="34" r="18" fill="#d97706"/>' +
+      '<path d="M32 17.5 v5.5" stroke="#92400e" stroke-width="2.4" stroke-linecap="round"/>' +
+      '<path d="M25.5 19.5 l1.6 4.6" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M38.5 19.5 l-1.6 4.6" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M15.5 30 h5" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M15.8 36 h5" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M48.5 30 h-5" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<path d="M48.2 36 h-5" stroke="#92400e" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<ellipse cx="32" cy="41.5" rx="10.5" ry="6.8" fill="#faf9f7"/>' +
+      '<circle cx="25.5" cy="29.5" r="5.4" fill="#faf9f7"/>' +
+      '<circle cx="38.5" cy="29.5" r="5.4" fill="#faf9f7"/>' +
+      '<circle cx="26.2" cy="30" r="3.4" fill="#0f766e"/>' +
+      '<circle cx="39.2" cy="30" r="3.4" fill="#0f766e"/>' +
+      '<circle cx="26.2" cy="30" r="1.7" fill="#292524"/>' +
+      '<circle cx="39.2" cy="30" r="1.7" fill="#292524"/>' +
+      '<circle cx="27.4" cy="28.5" r="1.1" fill="#faf9f7"/>' +
+      '<circle cx="40.4" cy="28.5" r="1.1" fill="#faf9f7"/>' +
+      '<path d="M29.6 38.4 L34.4 38.4 L32 41.2 Z" fill="#292524"/>' +
+      '<path d="M32 41.2 v1.5" stroke="#292524" stroke-width="1.5" stroke-linecap="round"/>' +
+      '<path d="M32 42.7 q-2.4 2.3 -4.5 .3" stroke="#292524" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+      '<path d="M32 42.7 q2.4 2.3 4.5 .3" stroke="#292524" stroke-width="1.5" fill="none" stroke-linecap="round"/>' +
+    "</svg>";
+
+  function alexAt(size) {
+    return '<span style="width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + ALEX + "</span>";
+  }
+
+  /* Brand mark: a classical column that is also a stack of books. */
+  var LOGO =
+    '<svg viewBox="0 0 64 64" aria-hidden="true" style="width:100%;height:100%;display:block;">' +
+      '<rect x="16" y="9" width="32" height="6" rx="2.5" fill="#115e59"/>' +
+      '<rect x="19" y="18" width="26" height="9" rx="2.5" fill="#0f766e"/>' +
+      '<rect x="17" y="29" width="30" height="9" rx="2.5" fill="#d97706"/>' +
+      '<rect x="20" y="40" width="24" height="9" rx="2.5" fill="#0f766e"/>' +
+      '<rect x="14" y="51" width="36" height="6" rx="2.5" fill="#115e59"/>' +
+      '<path d="M23 20.5 V24.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+      '<path d="M21 31.5 V35.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+      '<path d="M24 42.5 V46.5" stroke="#faf9f7" stroke-width="2" stroke-linecap="round"/>' +
+    "</svg>";
+
   function ico(name, size, color) {
     return '<span style="display:inline-flex;width:' + size + 'px;height:' + size + 'px;color:' + (color || "currentColor") + ';">' + ICON[name] + "</span>";
   }
@@ -426,7 +473,7 @@
 
   function screenOnboarding() {
     var ob = S.ob;
-    var step = SPARKY_SCRIPT[ob.step] || null;
+    var step = ALEX_SCRIPT[ob.step] || null;
 
     var log = ob.log.map(function (m) {
       if (m.who === "kid") {
@@ -436,7 +483,7 @@
         ? '<div style="margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:clamp(12px,2vh,18px);font-size:clamp(15px,2.4vh,21px);line-height:1.65;color:var(--ink);">' + esc(m.passage) + "</div>"
         : "";
       return '<div class="row" style="gap:11px;align-items:flex-start;max-width:88%;">' +
-          '<span style="width:38px;height:38px;border-radius:50%;background:var(--teal);color:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="width:56%;display:block;">' + ICON.sparky + "</span></span>" +
+          alexAt(42) +
           '<div style="background:var(--card);border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:clamp(10px,1.8vh,15px) clamp(14px,1.4vw,20px);font-size:clamp(14px,2.1vh,19px);line-height:1.55;color:var(--ink);">' + esc(m.text) + passage + "</div>" +
         "</div>";
     }).join("");
@@ -457,13 +504,13 @@
       "</div>";
     }
 
-    var done = ob.step >= SPARKY_SCRIPT.length;
+    var done = ob.step >= ALEX_SCRIPT.length;
     var lv = done ? ob.levels : null;
 
     app.className = "";
     app.innerHTML =
       '<div class="row gap-md">' +
-        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
+        '<span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + LOGO + "</span>" +
         '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Little Alexandria</span>' +
         '<span class="grow"></span>' +
         '<span class="pill pill-teal" style="font-weight:700;">Setting up your reading profile</span>' +
@@ -487,7 +534,7 @@
           '<span class="grow"></span>' +
           (done
             ? '<span style="font-size:clamp(13px,2vh,15px);color:var(--teal-dark);line-height:1.55;">We\'ll pick books that match these two levels — and change them as you read.</span>'
-            : '<span style="font-size:clamp(13px,2vh,15px);color:var(--muted);line-height:1.55;">Sparky works this out from your answers. It takes about a minute.</span>') +
+            : '<span style="font-size:clamp(13px,2vh,15px);color:var(--muted);line-height:1.55;">Alex works this out from your answers. It takes about a minute.</span>') +
         "</div>" +
 
       "</div>" +
@@ -495,7 +542,7 @@
       '<div class="row gap-lg">' +
         '<span class="row gap-sm"><span class="glyph">A</span><span class="hint">' + (done ? "Continue" : "Choose") + "</span></span>" +
         '<span class="grow"></span>' +
-        '<span class="hint-faint" style="font-size:15px;">Sparky runs on LibreChat &middot; answers set the two starting levels</span>' +
+        '<span class="hint-faint" style="font-size:15px;">Alex runs on LibreChat &middot; answers set the two starting levels</span>' +
       "</div>";
 
     var box = document.getElementById("oblog");
@@ -522,7 +569,7 @@
     app.className = "";
     app.innerHTML =
       '<div class="row gap-md">' +
-        '<span style="width:38px;height:38px;border-radius:12px;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;">' + ico("book", 21) + "</span>" +
+        '<span style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + LOGO + "</span>" +
         '<span class="display" style="font-size:clamp(17px,2.4vh,21px);color:var(--teal);">Little Alexandria</span>' +
         '<span class="grow"></span>' +
         '<span class="pill pill-streak">' + ico("flame", 18, "var(--amber)") + STUDENT.streak + " day streak</span>" +
@@ -536,7 +583,8 @@
 
         '<div class="col grow" style="gap:clamp(12px,2.2vh,22px);min-width:0;">' +
           '<div class="col" style="gap:8px;">' +
-            '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);font-weight:700;">Picked for you, ' + esc(STUDENT.name) + "</span>" +
+            '<span class="row" style="gap:9px;">' + alexAt(30) +
+              '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);font-weight:700;">Alex picked this for you, ' + esc(STUDENT.name) + "</span></span>" +
             '<h1 style="font-size:clamp(26px,5vh,40px);line-height:1.15;">' + esc(p.title) + "</h1>" +
             '<div class="row" style="gap:14px;flex-wrap:wrap;">' +
               '<span style="font-size:clamp(14px,2vh,17px);color:var(--muted);">' + esc(p.author) + "</span>" +
@@ -607,8 +655,8 @@
     } else {
       side =
         '<div class="side-idle">' +
-          '<span style="width:44px;color:#c4bfba;display:block;">' + ICON.help + "</span>" +
-          '<span class="display" style="font-size:clamp(16px,2.8vh,21px);color:var(--faint);line-height:1.35;">Tap any word<br>you don\'t know</span>' +
+          alexAt(72) +
+          '<span class="display" style="font-size:clamp(16px,2.8vh,21px);color:var(--faint);line-height:1.35;">Tap any word<br>and I\'ll explain it</span>' +
           '<span style="font-size:15px;color:#c4bfba;">The dotted ones are a good place to start</span>' +
         "</div>";
     }
@@ -734,7 +782,7 @@
     app.className = "done";
     app.innerHTML =
       '<div class="row" style="gap:22px;">' +
-        '<span style="width:clamp(52px,9vh,76px);height:clamp(52px,9vh,76px);border-radius:50%;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="width:55%;display:block;">' + ICON.check + "</span></span>" +
+        '<span style="width:clamp(62px,11vh,92px);height:clamp(62px,11vh,92px);border-radius:50%;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="width:74%;height:74%;display:block;">' + ALEX + "</span></span>" +
         '<div class="col" style="gap:5px;">' +
           '<h1 style="font-size:clamp(26px,5.4vh,42px);color:#fff;font-weight:700;line-height:1.1;">Daily reading done!</h1>' +
           '<span style="font-size:clamp(14px,2.3vh,18px);color:#99f6e4;font-weight:600;">You finished ' + esc(S.passage.passage.title) + ", " + esc(STUDENT.name) + "</span>" +
@@ -802,11 +850,11 @@
     S.screen = "onboarding";
     S.ob = { step: 0, log: [], likes: null, age: null, compCorrect: null, vocabCorrect: null, levels: null, askedAt: 0 };
     logEvent("onboarding_started", {});
-    pushSparky(0);
+    pushAlex(0);
   }
 
-  function pushSparky(i) {
-    askSparky(i).then(function (step) {
+  function pushAlex(i) {
+    askAlex(i).then(function (step) {
       if (!step) { render(); return; }
       S.ob.log.push({ who: "sparky", text: step.say });
       S.ob.log.push({ who: "sparky", text: step.ask, passage: step.passage || null });
@@ -817,7 +865,7 @@
 
   function pickOnboarding(i) {
     var ob = S.ob;
-    var step = SPARKY_SCRIPT[ob.step];
+    var step = ALEX_SCRIPT[ob.step];
     if (!step) return;
     var opt = step.options[i];
     var ms = Date.now() - ob.askedAt;
@@ -838,8 +886,8 @@
     });
 
     ob.step++;
-    if (ob.step < SPARKY_SCRIPT.length) {
-      pushSparky(ob.step);
+    if (ob.step < ALEX_SCRIPT.length) {
+      pushAlex(ob.step);
     } else {
       /* Placement model stand-in: age sets the baseline, each placement answer
          adjusts one axis. Replace with the real placement scoring. */

@@ -36,6 +36,10 @@ function wordCount(text) {
  * }
  */
 app.post('/api/sessions', async (req, res) => {
+  if (process.env.STUDENT_WRITES_ENABLED === 'false') {
+    return res.status(503).json({ error: 'Student session writes are temporarily paused' });
+  }
+
   const { session, passage, chunks = [], comprehensionQuestions = [], vocabQuestions = [] } = req.body || {};
 
   if (!session || !session.studentId || !session.classId) {
@@ -164,7 +168,11 @@ app.post('/api/sessions', async (req, res) => {
 async function health(_req, res) {
   try {
     await clickhouse.query({ query: 'SELECT 1' });
-    res.json({ ok: true, clickhouse: 'connected' });
+    res.json({
+      ok: true,
+      clickhouse: 'connected',
+      writesEnabled: process.env.STUDENT_WRITES_ENABLED !== 'false',
+    });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }

@@ -194,7 +194,7 @@ app.post('/api/student/:id/difficulty', async (req, res) => {
   }
 });
 
-app.get('/health', async (_req, res) => {
+async function health(_req, res) {
   try {
     await ensureSchema();
     await clickhouse.query({ query: 'SELECT 1' });
@@ -202,7 +202,10 @@ app.get('/health', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
-});
+}
+
+app.get('/health', health);
+app.get('/api/health', health);
 
 if (!process.env.VERCEL) {
   ensureSchema()

@@ -16,6 +16,8 @@
     "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-clear.ts",
     "db:clickhouse": "node --env-file-if-exists=.env --import tsx scripts/migrate-clickhouse.ts",
     "db:verify": "node --env-file-if-exists=.env --import tsx scripts/verify-connections.ts",
+    "ops:write-vercel-access": "node scripts/write-vercel-access-file.mjs",
+    "ops:verify-vercel": "node scripts/verify-vercel-apps.mjs",
     "check": "pnpm typecheck && pnpm test"
   },
   "dependencies": {

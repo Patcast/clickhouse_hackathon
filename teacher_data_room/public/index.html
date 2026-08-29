@@ -142,7 +142,11 @@ function showLoadError(error) {
 }
 
 load().catch(showLoadError);
-if (accessToken) setInterval(() => load().catch(showLoadError), 10000); // live-refresh as new sessions land in ClickHouse
+if (accessToken) {
+  setInterval(() => {
+    if (!document.hidden) load().catch(showLoadError);
+  }, 30000); // keep the demo current without polling ClickHouse from a hidden tab
+}
 </script>
 </body>
 </html>

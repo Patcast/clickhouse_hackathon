@@ -12,6 +12,10 @@ public hackathon writer bounded, Vercel accepts only synthetic student `104`,
 class `class-4b`, and bundled passage `2513`. Local development and the seed
 script retain the full multi-student behavior.
 
+Set the non-secret Vercel variable `STUDENT_WRITES_ENABLED=false` and redeploy
+to pause session writes during an abuse incident. The UI remains online,
+`/api/health` reports the writer state, and session POSTs return `503`.
+
 ## Run
 
 ```bash

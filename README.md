@@ -2,6 +2,12 @@
 
 > 📚 **New here?** Start with [The Little Alexandria Data Story](https://claude.ai/code/artifact/14dbae04-49a1-4ccc-ad8d-9b5eded91478) — a visual walkthrough of the whole system from the data's perspective: the CLEAR corpus, the Postgres schema, the ClickPipes CDC bridge, the ClickHouse analytics, and how kids, teachers, and the LibreChat AI coach each touch the data.
 
+> 🛠️ **Operating the live demo?** Use the
+> [Little Alexandria operations runbook](docs/little-alexandria-operations-runbook.md).
+> The private local handoff is always
+> `<repository-root>/.vercel/little-alexandria-access.txt`; it is git-ignored and
+> must be backed by the team password manager.
+
 ## Little Alexandria production demo
 
 Patricio's laptop-hosted demo has been moved from temporary ngrok URLs to three

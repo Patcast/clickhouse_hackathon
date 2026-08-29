@@ -48,9 +48,25 @@ App side gets: real async call, a "Sparky's thinking…" state, and a **fallback
 
 At this point, tapping any word in the book is a live LibreChat call — *"tap any word, any word at all"* becomes a true statement.
 
-## Phase 4 — Stretch only: teacher chat over ClickHouse
+## Phase 4 — Teacher chat over ClickHouse — ✅ BUILT
 
-If Phases 1–3 land early: LibreChat supports **MCP servers**. John exposes 2–3 ClickHouse queries as tools, configured in `librechat.yaml`, and the teacher asks "who's quietly struggling this week?" directly in LibreChat. Strongest possible story, but depends on ClickHouse being up — bonus, not plan.
+`analytics_mcp/` is an MCP server (streamable HTTP, port 3004) exposing four ClickHouse tools: `class_overview`, `student_detail`, `class_trend`, `hardest_questions` — the same queries as the teacher data room, verified against the live ClickHouse Cloud instance.
+
+LibreChat lives at `../LibreChat` (sibling of this repo), configured via `librechat.yaml` (MCP server + Anthropic endpoint) and `docker-compose.override.yml` (mounts the yaml, maps `host.docker.internal`).
+
+To demo:
+
+```bash
+# 1. MCP server (from this repo)
+cd analytics_mcp && npm start
+
+# 2. LibreChat
+cd ../LibreChat && docker compose up -d   # http://localhost:3080
+```
+
+Then in LibreChat: register → open **Agents** → create "Reading Coach" agent on the Anthropic endpoint → Add tools → select the four `reading-analytics` tools → ask *"who's quietly struggling this week?"*.
+
+The Anthropic key lives in `../LibreChat/.env` (`ANTHROPIC_API_KEY`), served through the **Claude-Team** custom endpoint. The built-in provider endpoints are hidden (`ENDPOINTS=agents,custom`) so there is exactly one obvious endpoint to pick.
 
 ## Time-boxing
 

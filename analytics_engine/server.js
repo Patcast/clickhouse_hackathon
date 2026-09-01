@@ -1,18 +1,14 @@
 import express from 'express';
 import { randomUUID } from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { clickhouse } from './clickhouse.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
-
-// The student app is served from another origin (progress-api / file://)
-app.use((req, res, next) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.ANALYTICS_ENGINE_PORT || 3001;
 
@@ -40,6 +36,10 @@ function wordCount(text) {
  * }
  */
 app.post('/api/sessions', async (req, res) => {
+  if (process.env.STUDENT_WRITES_ENABLED === 'false') {
+    return res.status(503).json({ error: 'Student session writes are temporarily paused' });
+  }
+
   const { session, passage, chunks = [], comprehensionQuestions = [], vocabQuestions = [] } = req.body || {};
 
   if (!session || !session.studentId || !session.classId) {
@@ -47,6 +47,17 @@ app.post('/api/sessions', async (req, res) => {
   }
   if (!passage || !passage.id) {
     return res.status(400).json({ error: 'passage.id is required' });
+  }
+  if (process.env.VERCEL && (Number(session.studentId) !== 104 || session.classId !== 'class-4b')) {
+    return res.status(400).json({ error: 'This public demo only accepts student 104 in class-4b' });
+  }
+  if (process.env.VERCEL && Number(passage.id) !== 2513) {
+    return res.status(400).json({ error: 'This public demo only accepts the bundled passage 2513' });
+  }
+  if (!Array.isArray(chunks) || chunks.length > 20 ||
+      !Array.isArray(comprehensionQuestions) || comprehensionQuestions.length > 20 ||
+      !Array.isArray(vocabQuestions) || vocabQuestions.length > 20) {
+    return res.status(400).json({ error: 'Invalid or oversized session arrays' });
   }
 
   const sessionId = session.sessionId || randomUUID();
@@ -154,15 +165,26 @@ app.post('/api/sessions', async (req, res) => {
   }
 });
 
-app.get('/health', async (_req, res) => {
+async function health(_req, res) {
   try {
     await clickhouse.query({ query: 'SELECT 1' });
-    res.json({ ok: true, clickhouse: 'connected' });
+    res.json({
+      ok: true,
+      clickhouse: 'connected',
+      writesEnabled: process.env.STUDENT_WRITES_ENABLED !== 'false',
+    });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
-});
+}
 
-app.listen(PORT, () => {
-  console.log(`analytics_engine listening on http://localhost:${PORT}`);
-});
+app.get('/health', health);
+app.get('/api/health', health);
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`analytics_engine listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

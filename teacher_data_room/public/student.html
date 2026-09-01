@@ -73,6 +73,28 @@
 
 <script>
 const pillClass = (pct) => pct >= 80 ? 'good' : pct >= 60 ? 'mid' : 'bad';
+const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+}[char]));
+
+const hashToken = new URLSearchParams(location.hash.slice(1)).get('access_token');
+if (hashToken) {
+  sessionStorage.setItem('readToPlayProfessorToken', hashToken);
+  history.replaceState(null, '', location.pathname + location.search);
+}
+const accessToken = hashToken || sessionStorage.getItem('readToPlayProfessorToken');
+
+async function apiFetch(path, options = {}) {
+  if (!accessToken) throw new Error('Open the shared professor access link to view analytics.');
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${response.status})`);
+  }
+  return response;
+}
 
 function profileLabel(avgWpm, accPct, avgTimeMs) {
   if (accPct < 55 && avgTimeMs < 8000) return { label: '🎲 Possible guesser', note: 'fast answers, low accuracy — encourage slowing down' };
@@ -100,7 +122,7 @@ function initDifficulty(id, difficulty) {
     const body = Object.fromEntries(Object.entries(sliders).map(([k, [s]]) => [k, Number(s.value)]));
     status.textContent = 'saving…';
     try {
-      const res = await fetch(`/api/student/${id}/difficulty`, {
+      const res = await apiFetch(`/api/student/${id}/difficulty`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -116,20 +138,20 @@ function initDifficulty(id, difficulty) {
 
 async function load() {
   const id = new URLSearchParams(location.search).get('id');
-  const res = await fetch(`/api/student/${id}`);
+  const res = await apiFetch(`/api/student/${id}`);
   const { info, sessions, vocabGaps, timing, difficulty } = await res.json();
 
   initDifficulty(id, difficulty || { fk_grade_max: 6, dale_chall_max: 7, bt_easiness_min: 0 });
 
   document.getElementById('name').innerHTML =
-    `${info?.name || 'Student ' + id} <span class="sub">${info ? info.class_id + ' · grade ' + info.grade : ''}</span>`;
+    `${esc(info?.name || 'Student ' + id)} <span class="sub">${esc(info ? info.class_id + ' · grade ' + info.grade : '')}</span>`;
   document.title = `${info?.name || 'Student'} — Teacher Data Room`;
 
-  const avgWpm = sessions.reduce((s, r) => s + r.wpm, 0) / sessions.length;
+  const avgWpm = sessions.reduce((s, r) => s + r.wpm, 0) / (sessions.length || 1);
   const totCorrect = sessions.reduce((s, r) => s + r.comp_correct + r.vocab_correct, 0);
   const totQ = sessions.reduce((s, r) => s + r.comp_total + r.vocab_total, 0);
-  const accPct = 100 * totCorrect / totQ;
-  const avgTime = timing.reduce((s, t) => s + t.time_spent_ms, 0) / timing.length;
+  const accPct = 100 * totCorrect / (totQ || 1);
+  const avgTime = timing.reduce((s, t) => s + t.time_spent_ms, 0) / (timing.length || 1);
   const prof = profileLabel(avgWpm, accPct, avgTime);
 
   document.getElementById('stats').innerHTML = `
@@ -197,14 +219,14 @@ async function load() {
   });
 
   document.getElementById('vocabGaps').innerHTML = vocabGaps.length
-    ? vocabGaps.map((v) => `<span class="chip">${v.vocab_word} ×${v.misses}</span>`).join('')
+    ? vocabGaps.map((v) => `<span class="chip">${esc(v.vocab_word)} ×${v.misses}</span>`).join('')
     : '<p class="muted">No missed vocabulary words 🎉</p>';
 
   document.querySelector('#sessionsTable tbody').innerHTML = sessions.slice().reverse().slice(0, 30).map((r) => {
     const cp = 100 * r.comp_correct / r.comp_total, vp = 100 * r.vocab_correct / r.vocab_total;
     return `<tr>
-      <td class="muted">${r.day}</td>
-      <td><strong>${r.passage_title}</strong></td>
+      <td class="muted">${esc(r.day)}</td>
+      <td><strong>${esc(r.passage_title)}</strong></td>
       <td>${r.lexile_band}L</td>
       <td>${r.wpm}</td>
       <td><span class="pill ${pillClass(cp)}">${r.comp_correct}/${r.comp_total}</span></td>
@@ -213,7 +235,10 @@ async function load() {
     </tr>`;
   }).join('');
 }
-load();
+load().catch((error) => {
+  document.getElementById('stats').innerHTML =
+    `<div class="card"><strong>Access required</strong><div class="muted">${esc(error.message)}</div></div>`;
+});
 </script>
 </body>
 </html>

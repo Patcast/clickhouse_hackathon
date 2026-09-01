@@ -11,6 +11,9 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "@clickhouse/client": "^1.23.1",
     "@modelcontextprotocol/sdk": "^1.30.0",

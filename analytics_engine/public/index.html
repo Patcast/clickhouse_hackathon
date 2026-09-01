@@ -1,6 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="little-alexandria-data-tools-contract" content="query-dataTools-v1">
 <title>Little Alexandria</title>
 <link rel="preload" as="image" href="./little-alexandria-hero.png" fetchpriority="high">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
@@ -291,6 +292,7 @@
     opacity: .55; transition: opacity .15s ease;
   }
   #devbtn:hover { opacity: 1; }
+  #devbtn[hidden], #dev[hidden] { display: none !important; }
   #dev {
     position: fixed; inset: 0; z-index: 50; background: rgba(41,37,36,.55);
     display: none; align-items: stretch; justify-content: flex-end;
@@ -1428,10 +1430,29 @@
      8. DEV DRAWER — proves every interaction produced structured data
      ========================================================================= */
 
+  var devButton = document.getElementById("devbtn");
   var dev = document.getElementById("dev");
   var devout = document.getElementById("devout");
   var eventContract = document.getElementById("eventcontract");
   var saveBtn = dev.querySelector('[data-dev="save"]');
+
+  /* Deckhand controls only whether the presentation drawer is visible. This
+     never changes API routes, credentials, cookies, or authorization. */
+  function dataToolsVisibility(search) {
+    var values = new URLSearchParams(search).getAll("dataTools");
+    if (values.length === 0) return "default";
+    return values.length === 1 && values[0] === "on" ? "on" : "off";
+  }
+
+  function applyDataToolsVisibility(enabled, button, drawer) {
+    button.hidden = !enabled;
+    drawer.hidden = !enabled;
+    if (!enabled) drawer.classList.remove("open");
+  }
+
+  var dataToolsMode = dataToolsVisibility(window.location.search);
+  var dataToolsEnabled = dataToolsMode !== "off";
+  applyDataToolsVisibility(dataToolsEnabled, devButton, dev);
 
   function devRender() {
     devout.textContent = S.devTab === "payload"
@@ -1443,7 +1464,8 @@
     });
   }
 
-  document.getElementById("devbtn").addEventListener("click", function () {
+  devButton.addEventListener("click", function () {
+    if (!dataToolsEnabled) { dev.classList.remove("open"); return; }
     dev.classList.add("open");
     devRender();
   });

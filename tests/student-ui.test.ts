@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 const htmlUrl = new URL("../analytics_engine/public/index.html", import.meta.url);
 const heroUrl = new URL("../analytics_engine/public/little-alexandria-hero.png", import.meta.url);
@@ -45,4 +46,58 @@ test("uses explicit verb-noun event contracts and rejects stale session response
   assert.doesNotMatch(html, /logEvent\("word_tapped", \{\s*word:/);
   assert.match(html, /errorCode: httpStatus \? "HTTP_" \+ httpStatus : "NETWORK_ERROR"/);
   assert.doesNotMatch(html, /logEvent\("session_save_failed", \{ error:/);
+});
+
+test("fails the Student data-tools query closed without changing default behavior", async () => {
+  const html = await readFile(htmlUrl, "utf8");
+  const visibilitySource = html.match(/function dataToolsVisibility\(search\) \{[\s\S]*?\n  \}/)?.[0];
+  assert.ok(visibilitySource, "data-tools visibility parser is present");
+
+  const visibility = runInNewContext(
+    `(${visibilitySource.replace(/^function dataToolsVisibility/, "function")})`,
+    { URLSearchParams },
+  ) as (search: string) => "default" | "on" | "off";
+
+  assert.equal(visibility(""), "default");
+  assert.equal(visibility("?unrelated=value"), "default");
+  assert.equal(visibility("?dataTools=on"), "on");
+  for (const search of [
+    "?dataTools=off",
+    "?dataTools=",
+    "?dataTools=unknown",
+    "?dataTools=ON",
+    "?dataTools=on&dataTools=on",
+    "?dataTools=on&dataTools=off",
+  ]) {
+    assert.equal(visibility(search), "off", search);
+  }
+
+  const applySource = html.match(/function applyDataToolsVisibility\(enabled, button, drawer\) \{[\s\S]*?\n  \}/)?.[0];
+  assert.ok(applySource, "data-tools DOM policy is present");
+  const applyVisibility = runInNewContext(
+    `(${applySource.replace(/^function applyDataToolsVisibility/, "function")})`,
+  ) as (
+    enabled: boolean,
+    button: { hidden: boolean },
+    drawer: { hidden: boolean; classList: { remove(value: string): void } },
+  ) => void;
+  const removed: string[] = [];
+  const button = { hidden: false };
+  const drawer = { hidden: false, classList: { remove: (value: string) => removed.push(value) } };
+  applyVisibility(false, button, drawer);
+  assert.equal(button.hidden, true);
+  assert.equal(drawer.hidden, true);
+  assert.deepEqual(removed, ["open"]);
+  applyVisibility(true, button, drawer);
+  assert.equal(button.hidden, false);
+  assert.equal(drawer.hidden, false);
+
+  assert.match(html, /content="query-dataTools-v1"/);
+  assert.match(html, /#devbtn\[hidden\], #dev\[hidden\] \{ display: none !important; \}/);
+  assert.match(html, /button\.hidden = !enabled;/);
+  assert.match(html, /drawer\.hidden = !enabled;/);
+  assert.match(html, /if \(!enabled\) drawer\.classList\.remove\("open"\);/);
+  assert.match(html, /if \(!dataToolsEnabled\) \{ dev\.classList\.remove\("open"\); return; \}/);
+  assert.match(html, /var dataToolsEnabled = dataToolsMode !== "off";/);
+  assert.match(html, /#app\.front-door \+ #devbtn \{ display: none; \}/);
 });

@@ -27,10 +27,13 @@ if (
   || !studentPage.text.includes('Event contract (')
   || !studentPage.text.includes('schemaVersion: "event.v1"')
   || !studentPage.text.includes('verb: "POST",     noun: "reading_session"')
+  || !studentPage.text.includes('content="query-dataTools-v1"')
+  || !studentPage.text.includes('getAll("dataTools")')
+  || !studentPage.text.includes('if (!enabled) drawer.classList.remove("open")')
 ) {
-  throw new Error('student page: expected Little Alexandria front door or event contract not found');
+  throw new Error('student page: expected front door, event contract, or data-tools visibility contract not found');
 }
-results.push(['student page', 200, 'front door and verb-noun event contract']);
+results.push(['student page', 200, 'front door, events, and data-tools visibility contract']);
 
 const studentHealth = await request('student health', `${urls.student}/api/health`);
 const studentHealthBody = JSON.parse(studentHealth.text);
